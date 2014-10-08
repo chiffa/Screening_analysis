@@ -6,14 +6,25 @@ import numpy as np
 from itertools import product
 from Support import debug_wrapper
 from matplotlib import pyplot as plt
+import matplotlib as mlb
 from scipy.ndimage.filters import gaussian_filter1d as gf_1d
 from collections import defaultdict
 from csv import reader, writer
 from pprint import pprint
+from time import time
+from string import ascii_lowercase
 
-file_location = 'U:/ank/2014/Screen_with_Jin'
-file_name = 'Tecan_9-26-2014.xlsx'
+tinit = time()
+mlb.rcParams['font.size'] = 10.0
+mlb.rcParams['figure.figsize'] = (30,20)
+# todo: add discounting for the yeast division lag in the new cells.
+# todo: Normalize OD with respect to the empty wells
+
+file_location = 'U:/ank/2014/Screen_with_Jin/10.07.2014'
+# file_name = 'Tecan_9-26-2014.xlsx'
+file_name = 'Book2.xlsx'
 d_time = 15./60.
+
 
 current_path = os.path.join(file_location, file_name)
 wb = xlrd.open_workbook(current_path)
@@ -24,6 +35,7 @@ def extract_plate(a1_coordinates, sheet):
     plate = np.zeros((8, 12))
     for i, j in product(range(0, 8), range(0, 12)):
         _i, _j = (np.array([i, j]) + np.array(list(a1_coordinates))).astype(np.uint32).tolist()
+        # print _i, _j, sheet.cell(_i, _j).value
         plate[i, j] = sheet.cell(_i, _j).value
     return plate
 
@@ -42,7 +54,6 @@ def extract_plate_dit():
 
 
 def plot_growth(plates_stack, grad=False):
-    plt.figure(figsize=(30.0, 20.0))
     fig = plt.gcf()
     fig.canvas.set_window_title('min:%s, max:%s, total points: %s'%(np.min(plates_stack), np.max(plates_stack), plates_stack.shape[0]))
     for i, j in product(range(0, 8), range(0, 12)):
@@ -54,23 +65,60 @@ def plot_growth(plates_stack, grad=False):
         plt.ylim((np.min(plates_stack), np.max(plates_stack)))
         fig.set_xticklabels([])
         fig.set_yticklabels([])
-    if grad:
-        plt.savefig('grads.png', dpi=500)
+    plt.savefig('im_%s.png'%int(time()-tinit), dpi=500)
     plt.show()
-    plt.clf()
+    # plt.clf()
 
-def analyse(plates_stack):
+
+def group_plot(plates_stack, zoomlist):
+    timepad = np.linspace(0, d_time*plates_stack.shape[0], num=plates_stack.shape[0])
+    for sublist in zoomlist:
+        legend = []
+        for elt in sublist:
+            plt.plot(timepad, plates_stack[:,elt[0], elt[1]])
+            legend.append(str('%s %s')%(ascii_lowercase[elt[0]], elt[1]+1))
+        plt.legend(legend, loc='upper left')
+        plt.savefig('group_im_%s.png'%int(time()-tinit))
+        plt.show()
+        # plt.clf()
+
+
+def analyse(plates_stack, zoomlist):
     plot_growth(plates_stack)
     reference_std = np.std(plates_stack[:, 0, 0])*2
     print reference_std
     log_stack = np.log10(plates_stack)/np.log10(2)
+    for i,j in product(range(0, 8), range(0, 12)):
+        log_stack[:, i, j] = log_stack[:, i, j] - np.mean(log_stack[range(0, 3), i, j])
     plot_growth(log_stack)
     grad_stack = np.zeros(log_stack.shape)
     for i, j in product(range(0, 8), range(0, 12)):
-        grad_stack[:, i, j] = np.gradient(gf_1d(log_stack[:, i, j], 1.5))
+        grad_stack[:, i, j] = np.gradient(gf_1d(log_stack[:, i, j], 2))
     plot_growth(grad_stack, True)
-    #TODO: add discounting for the yeast difvision lag in the new cells.
+    group_plot(plates_stack, zoomlist)
+    # group_plot(log_stack, zoomlist)
+    group_plot(grad_stack, zoomlist)
+
+
+def correct(plate, position, injections):
+    new_plate = np.zeros((plate_3D_array.shape[0]+injections-1, plate_3D_array.shape[1], plate_3D_array.shape[2]))
+    new_plate[:position+1, :, :] = plate[:position+1, :, :]
+    new_plate[position+injections-1:, :, :] = plate[position:, :, :]
+    diffplate = (plate[position+1, :, :] - plate[position, :, :]) / float(injections)
+    for i in range(1, injections):
+        new_plate[position+i, :, :] = plate[position, :, :] + diffplate * i
+    return new_plate
+
 
 if __name__ == "__main__":
     plate_3D_array = extract_plate_dit()
-    analyse(plate_3D_array)
+    plate_3D_array = correct(plate_3D_array, 174, 6)
+    plate_3D_array = plate_3D_array - np.min(plate_3D_array) + 0.001
+    zoomlist = [
+                [(5, 6), (6, 6), (5, 2), (6, 2)],
+                [(5, 6), (6, 6), (3, 6), (4, 6)],
+                [(5, 6), (6, 6), (1, 6), (2, 6)],
+                [(5, 6), (6, 6), (3, 7), (4, 7)],
+                [(2, 6), (6, 6), (3, 7), (4, 7), (1, 2), (2, 2)],
+                ]
+    analyse(plate_3D_array, zoomlist)
