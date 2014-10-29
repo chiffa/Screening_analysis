@@ -7,8 +7,10 @@ from matplotlib import pyplot as plt
 from math import sqrt
 from Support import pretty_gradual_plot, get_resistant_susceptible
 import matplotlib as mlb
-from itertools import permutations
+from itertools import permutations, product
 from Linalg_routines import hierchical_clustering, show_matrix_with_names
+from scipy.stats import gaussian_kde
+from matplotlib.pyplot import Rectangle
 
 pth = 'U:\\ank\\2014\\BRU_GBO\\4th_gen'
 fle = 'gb-breast_cancer.tsv'
@@ -121,44 +123,190 @@ for index, drug in sorted(drug_idx_rv.items()):
 flds = np.array(foldlist)
 
 
-
-plt.imshow(flds, interpolation='nearest', cmap='coolwarm')
-plt.yticks(range(0, len(drug_idx)), [drug for i, drug in sorted(drug_idx_rv.items())], rotation='horizontal')
-plt.xticks(range(0, len(cell_idx)), [cell for i, cell in sorted(cell_idx_rv.items())], rotation='vertical')
-plt.colorbar()
-plt.show()
-
 from scipy.stats import itemfreq
 fulter = np.all(np.logical_not(np.isnan(storage)), axis=(2,3))
 cnt = np.sum(fulter, axis = 1)
 for i, cell in sorted(cell_idx_rv.items()):
-    ifrq = itemfreq(remove_nan(flds[:,i])+1)
-    collector = [0, 0, 0]
+    ifrq = itemfreq((remove_nan(flds[:,i])+1)*2)
+    collector = [0, 0, 0, 0, 0]
     for val, count in ifrq:
         collector[int(val)]=int(count/float(cnt[i])*100)
-    if len(cell)<6:
-        pad = ''.join([' ']*(6-len(cell)))
+    if len(cell)<10:
+        pad = ''.join([' ']*(10-len(cell)))
     else:
         pad = ''
-    print cell+pad, ':', '\t', 'kill: %s %% \t weak: %s %% \t strong: %s %% '% (collector[0], collector[1], collector[2])
+    print cell+pad, ':', '\t', 'kill: %s %% \t susceptible: %s %% \t partially resistant: %s %% \t resistant: %s %%'% (collector[0], collector[1], collector[3], collector[4])
 
 
-# todo: plot the drugs - cell combination
-#
-# count = np.sum(fulter, axis = 0).astype(np.float)
-# print count.shape
-# p_drug = np.sum(flds<0.01, axis=1)/count
-# collector_array = np.zeros((p_drug.shape[0], p_drug.shape[0]))
-# for i, j in permutations(range(0, p_drug.shape[0]), 2):
-#     # collector_array[i, j] = np.sum(np.logical_or(flds[i, :]<0.01, flds[j, :]<0.01))/float(max(count[i], count[j]))/np.sqrt(p_drug[i]*p_drug[j])
-#     collector_array[i, j] = max(1.5, float(np.sum(np.logical_xor(flds[i, :]<0.01, flds[j, :]<0.01))-np.sum(np.logical_xor(fulter[:, i], fulter[:, j]))))
-#
-# collector_array = 1./(collector_array+np.identity(collector_array.shape[0]))
+cm = plt.cm.get_cmap('coolwarm')
+red = Rectangle((0, 0), 1, 1, fc=cm(1.0))
+light_red = Rectangle((0, 0), 1, 1, fc=cm(0.75))
+grey = Rectangle((0, 0), 1, 1, fc=cm(0.5))
+light_blue = Rectangle((0, 0), 1, 1, fc=cm(0.25))
+blue = Rectangle((0, 0), 1, 1, fc=cm(0.0))
+
+
+def characterize_array(matrix, title, analysis_type=0):
+    experiment_mask = np.logical_not(np.isnan(matrix))
+    collector_array = np.zeros((matrix.shape[0], matrix.shape[0]))
+    for i, j in product(range(0, matrix.shape[0]), repeat=2):
+        common_ground = np.logical_and(experiment_mask[i, :], experiment_mask[j, :])
+        action1 = float(np.sum(np.logical_and(matrix[i, :]<-0.1, common_ground)))/float(np.sum(common_ground))
+        action2 = float(np.sum(np.logical_and(matrix[j, :]<-0.1, common_ground)))/float(np.sum(common_ground))
+        if analysis_type:
+            complementary_action = float(np.sum(np.logical_and(np.logical_or(matrix[i, :]<-0.1, matrix[j, :]<-0.1), common_ground)))/float(np.sum(common_ground))
+            collector_array[i, j] = complementary_action
+        else:
+            complementary_action = float(np.sum(np.logical_and(np.logical_xor(matrix[i, :]<-0.1, matrix[j, :]<-0.1), common_ground)))/float(np.sum(common_ground))
+            collector_array[i, j] = (complementary_action)/(1 - (action1 * action2 + (1 - action1) * (1 - action2)))
+
+    density = gaussian_kde(collector_array.flatten())
+    xs = np.linspace(collector_array.min(), collector_array.max(), 200)
+    plt.hist(collector_array.flatten(), 100, histtype='step', normed=True, label=title)
+    plt.plot(xs, density(xs), label=title)
+
+    return collector_array
+
+
+def random_permute(matrix, axis):
+
+    def na_stable_permutation(D1_array):
+        msk = np.logical_not(np.isnan(D1_array))
+        load = np.random.permutation(D1_array[msk])
+        new_arr = np.empty(D1_array.shape)
+        new_arr.fill(np.NaN)
+        new_arr[msk] = load
+        print new_arr
+        print D1_array
+        return new_arr
+
+    return np.apply_along_axis(na_stable_permutation, axis=axis, arr=matrix)
+
+
+def plot_action_map(fields, Drug1=None, Drug2=None):
+
+    if Drug1 is None and Drug2 is None:
+        # min / max
+        # percent killed at max concentration (drug)
+        # percent resistant or weakly resistant
+        # percent killed or susceptible
+        plt.imshow(fields, interpolation='nearest', cmap='coolwarm')
+        plt.tick_params(axis='both',  labelsize=8)
+        plt.yticks(range(0, len(drug_idx)), [drug for i, drug in sorted(drug_idx_rv.items())], rotation='horizontal', )
+        plt.xticks(range(0, len(cell_idx)), [cell for i, cell in sorted(cell_idx_rv.items())], rotation='vertical')
+        plt.legend((red, light_red, grey, light_blue, blue),
+                   ('Resistant', 'Partially Resistant', 'No specific phenotype', 'Susceptible', 'Killed'),
+                   bbox_to_anchor=(0., 1.02, 1., .102), loc=3, ncol=3, mode="expand", borderaxespad=0.,)
+        plt.show()
+
+    if Drug1 is not None and Drug2 is not None:
+        if type(Drug1) is str:
+            idx1 = drug_idx[Drug1]
+            name1 = Drug1
+        if type(Drug1) is int:
+            idx1 = Drug1
+            name1 = drug_idx_rv[Drug1]
+        if type(Drug2) is str:
+            idx2 = drug_idx[Drug2]
+            name2 = Drug2
+        if type(Drug2) is int:
+            idx2 = Drug2
+            name2 = drug_idx_rv[Drug2]
+
+        print idx1, name1, idx2, name2
+        matrix = flds
+        experiment_mask = np.logical_not(np.isnan(matrix))
+        common_ground = np.logical_and(experiment_mask[idx1, :], experiment_mask[idx2, :])
+        action1 = float(np.sum(np.logical_and(matrix[idx1, :]<-0.1, common_ground)))/float(np.sum(common_ground))
+        action2 = float(np.sum(np.logical_and(matrix[idx2, :]<-0.1, common_ground)))/float(np.sum(common_ground))
+        print action1, action2, float(np.sum(common_ground))
+        print float(np.sum(np.logical_and(np.logical_or(matrix[idx1, :]<-0.1, matrix[idx2, :]<-0.1), common_ground)))
+        complementary_action = float(np.sum(np.logical_and(np.logical_or(matrix[idx1, :]<-0.1, matrix[idx2, :]<-0.1), common_ground)))/float(np.sum(common_ground))
+        print (complementary_action)
+        complementary_action = float(np.sum(np.logical_and(np.logical_xor(matrix[idx1, :]<-0.1, matrix[idx2, :]<-0.1), common_ground)))/float(np.sum(common_ground))
+        print (complementary_action)/(1 - (action1 * action2 + (1 - action1) * (1 - action2)))
+
+
+        plt.imshow(fields[(idx1, idx2),:], interpolation='nearest', cmap='coolwarm')
+        plt.tick_params(axis='both',  labelsize=8)
+        plt.yticks(range(0, 2), [name1, name2], rotation='horizontal', )
+        plt.xticks(range(0, len(cell_idx)), [cell for i, cell in sorted(cell_idx_rv.items())], rotation='vertical')
+        plt.legend((red, light_red, grey, light_blue, blue),
+                   ('Resistant', 'Partially Resistant', 'Weakly resistant', 'Susceptible', 'Killed'),
+                   bbox_to_anchor=(0., 1.02, 1., .102), loc=3, ncol=3, mode="expand", borderaxespad=0.,)
+        plt.show()
+
+
+def round_show(matrix):
+    mat_source = matrix.copy()
+    drugnames = [drug for i, drug in sorted(drug_idx_rv.items())]
+    index = hierchical_clustering(matrix, drugnames)
+    drugnames = np.array(drugnames)[index].tolist()
+    matrix = matrix[:, index]
+    matrix = matrix[index, :]
+    matrix[matrix==101] = np.NaN
+    # np.fill_diagonal(matrix, 1)
+    # matrix = 1.0 / matrix
+    show_matrix_with_names(matrix, drugnames, drugnames)
+
+    matrix = mat_source
+    matrix[matrix==101] = np.NaN
+    np.fill_diagonal(matrix, 0)
+    fltr = np.isnan(matrix)
+    matrix[fltr] = 0
+    crds = []
+    while np.amax(matrix) > 0:
+        coords = np.unravel_index(np.argmax(matrix), matrix.shape)
+        crds.append(coords)
+        matrix[coords] = 0
+        matrix[coords[1], coords[0]] = 0
+
+    for i, coords in enumerate(crds):
+        idx1 = coords[0]
+        name1 = drug_idx_rv[coords[0]]
+        idx2 = coords[1]
+        name2 = drug_idx_rv[coords[1]]
+
+        ax = plt.subplot(len(crds), 1, i+1)
+        ax.imshow(flds[(idx1, idx2),:], interpolation='nearest', cmap='coolwarm')
+        ax.tick_params(axis='both',  labelsize=8)
+        plt.yticks(range(0, 2), [name1, name2], rotation='horizontal', )
+        if i==0:
+            ax.legend((red, light_red, grey, light_blue, blue),
+                   ('Resistant', 'Partially Resistant', 'Weakly resistant', 'Susceptible', 'Killed'),
+                   bbox_to_anchor=(0., 1.02, 1., .102), loc=3, ncol=3, mode="expand", borderaxespad=0.,)
+        if i == len(crds)-1:
+            plt.xticks(range(0, len(cell_idx)), [cell for i, cell in sorted(cell_idx_rv.items())], rotation='vertical')
+    plt.show()
+    # plot_action_map(flds, int(coords[0]), int(coords[1]))
+    return index
+
+# plot_action_map(flds)
+# plot_action_map(flds, 'Rapamycin', 'Fascaplysin')
+
+# per_flds = random_permute(flds, 1)
+# plot_action_map(per_flds)
+
+collector_array = characterize_array(flds, 'original', 1)
+plt.clf()
 # drugnames = [drug for i, drug in sorted(drug_idx_rv.items())]
-# index = hierchical_clustering(collector_array, drugnames)
-#
-# drugnames = np.array(drugnames)[index].tolist()
-# collector_array = collector_array[:, index]
-# collector_array = collector_array[index, :]
-#
-# show_matrix_with_names(1./collector_array, drugnames, drugnames)
+# show_matrix_with_names(collector_array, drugnames, drugnames)
+round_show(collector_array)
+# permcollector_array = characterize_array(per_flds, 'permuted')
+# plt.legend()
+# plt.show()
+# plt.clf()
+
+synergy = collector_array.copy()
+synergy[synergy < 0.99] = 101
+np.fill_diagonal(synergy, 0)
+msk = np.logical_and(synergy<100, synergy>0.01)
+synergy[msk] = 1.0 / synergy[msk]
+round_show(synergy)
+
+
+# anti_synergy = collector_array.copy()
+# anti_synergy[anti_synergy > 0.4] = 101
+# np.fill_diagonal(anti_synergy, 0)
+# round_show(anti_synergy)
+

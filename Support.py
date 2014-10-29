@@ -124,6 +124,18 @@ def pretty_get_resistant_susceptible(data, strain_name_map, drug_name, blank_lin
     resistant = list(set(np.any(rel_mean>upper, axis=1).nonzero()[0])-set(destroyed))
     susceptible = list(set(np.any(rel_mean<lower, axis=1).nonzero()[0])-set(destroyed))
 
+    ret_array = np.empty(data.shape[0])
+    ret_array.fill(np.NaN) # we might try to do somethign to distinguish the "no effect" from "no data"
+    ret_array[reverse_filter[resistant]] = 1
+    ret_array[reverse_filter[susceptible]] = 0
+    ret_array[reverse_filter[destroyed]] = -1
+
+    if len(resistant) < 1:
+        int_ret = pretty_get_resistant_susceptible(data[:,:-1,:], strain_name_map, drug_name, blank_line=blank_line)
+        int_ret[int_ret>0] = int_ret[int_ret>0] * 0.5
+        flt = int_ret > 0
+        ret_array[flt] = int_ret[flt]
+        return ret_array
 
     inner_scatter_plot(mean, std, names, resistant, False, 1)
     inner_scatter_plot(rel_mean, rel_std, names, resistant, True, 1)
@@ -133,12 +145,6 @@ def pretty_get_resistant_susceptible(data, strain_name_map, drug_name, blank_lin
 
     inner_scatter_plot(mean, std, names, destroyed, False, 1)
     inner_scatter_plot(rel_mean, rel_std, names, destroyed, True, 1)
-
-    ret_array = np.empty(data.shape[0])
-    ret_array.fill(np.NaN) # we might try to do somethign to distinguish the "no effect" from "no data"
-    ret_array[reverse_filter[resistant]] = 1
-    ret_array[reverse_filter[susceptible]] = 0
-    ret_array[reverse_filter[destroyed]] = -1
 
     print 'resistant:', np.array(names)[resistant].tolist()
     print 'susceptible:', np.array(names)[susceptible].tolist()
@@ -172,14 +178,15 @@ def get_resistant_susceptible(data, drug_name, blank_line=200):
 
     ret_array = np.empty(data.shape[0])
     ret_array.fill(np.NaN)
+    ret_array[reverse_filter] = 0
     ret_array[reverse_filter[resistant]] = 1
-    ret_array[reverse_filter[susceptible]] = 0
+    ret_array[reverse_filter[susceptible]] = -0.5
     ret_array[reverse_filter[destroyed]] = -1
 
     if len(resistant)<1:
         int_ret = get_resistant_susceptible(data[:,:-1,:], drug_name, blank_line=blank_line)
         int_ret[int_ret>0] = int_ret[int_ret>0]*0.5
-        flt = np.logical_not(np.isnan(int_ret))
+        flt = int_ret > 0
         ret_array[flt] = int_ret[flt]
 
     return ret_array
