@@ -81,7 +81,7 @@ def pretty_gradual_plot(data, concentrations, strain_name_map, drug_name, blank_
     plt.show()
 
 
-def pretty_get_resistant_susceptible(data, strain_name_map, drug_name, blank_line=200):
+def pretty_get_resistant_susceptible(data, strain_name_map, drug_name, blank_line=200, concentrations=[]):
 
     def inner_scatter_plot(mean, std, names, selector=None, relative=False, limiter=4):
         if selector is not None:
@@ -112,30 +112,33 @@ def pretty_get_resistant_susceptible(data, strain_name_map, drug_name, blank_lin
     rel_mean, rel_std = (mean/refmean, np.sqrt(np.power(refstd, 2)+np.power(std, 2))/mean)
 
     # From here, we are processing just the best survivors v.s. worst survivors
-    dead = mean-std<blank_line
+    dead = mean - std < blank_line
 
-    # first, filter out all those that cannot be distinguished from background
-    upper = np.percentile(rel_mean, 95, axis = 0).reshape(1, rel_mean.shape[1])
-    lower = np.percentile(rel_mean, 5, axis = 0).reshape(1, rel_mean.shape[1])
+    rel_mean[dead] = 0
+    upper = np.percentile(rel_mean, 95, axis=0).reshape(1, rel_mean.shape[1])
+    lower = np.percentile(rel_mean, 5, axis=0).reshape(1, rel_mean.shape[1])
     upper[0, :-2] = 100
     lower[0, :-2] = 0
 
     destroyed = np.any(dead, axis=1).nonzero()[0]
-    resistant = list(set(np.any(rel_mean>upper, axis=1).nonzero()[0])-set(destroyed))
-    susceptible = list(set(np.any(rel_mean<lower, axis=1).nonzero()[0])-set(destroyed))
+
+    resistant = list(set(np.any(rel_mean>upper, axis=1).nonzero()[0]) - set(destroyed))
+    susceptible = list(set(np.any(rel_mean<lower, axis=1).nonzero()[0]) - set(destroyed))
 
     ret_array = np.empty(data.shape[0])
-    ret_array.fill(np.NaN) # we might try to do somethign to distinguish the "no effect" from "no data"
+    ret_array.fill(np.NaN)
+    ret_array[reverse_filter] = 0
     ret_array[reverse_filter[resistant]] = 1
-    ret_array[reverse_filter[susceptible]] = 0
+    ret_array[reverse_filter[susceptible]] = -0.5
     ret_array[reverse_filter[destroyed]] = -1
 
-    if len(resistant) < 1:
+    print len(reverse_filter), len(resistant), len(susceptible), len(destroyed)
+
+    if len(resistant)<1:
         int_ret = pretty_get_resistant_susceptible(data[:,:-1,:], strain_name_map, drug_name, blank_line=blank_line)
-        int_ret[int_ret>0] = int_ret[int_ret>0] * 0.5
+        int_ret[int_ret>0] = int_ret[int_ret>0]*0.5
         flt = int_ret > 0
         ret_array[flt] = int_ret[flt]
-        return ret_array
 
     inner_scatter_plot(mean, std, names, resistant, False, 1)
     inner_scatter_plot(rel_mean, rel_std, names, resistant, True, 1)
@@ -152,6 +155,7 @@ def pretty_get_resistant_susceptible(data, strain_name_map, drug_name, blank_lin
 
     return ret_array
 
+
 def get_resistant_susceptible(data, drug_name, blank_line=200):
 
     filter = np.all(np.logical_not(np.isnan(data)), axis=(1, 2))
@@ -167,6 +171,7 @@ def get_resistant_susceptible(data, drug_name, blank_line=200):
     dead = mean-std<blank_line
 
     # first, filter out all those that cannot be distinguished from background
+    rel_mean[dead] = 0
     upper = np.percentile(rel_mean, 95, axis = 0).reshape(1, rel_mean.shape[1])
     lower = np.percentile(rel_mean, 5, axis = 0).reshape(1, rel_mean.shape[1])
     upper[0, :-2] = 100

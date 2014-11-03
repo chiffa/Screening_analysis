@@ -5,9 +5,9 @@ from csv import reader
 from os import path
 from matplotlib import pyplot as plt
 from math import sqrt
-from Support import pretty_gradual_plot, get_resistant_susceptible
+from Support import pretty_gradual_plot, get_resistant_susceptible, pretty_get_resistant_susceptible
 import matplotlib as mlb
-from itertools import permutations, product
+from itertools import product
 from Linalg_routines import hierchical_clustering, show_matrix_with_names
 from scipy.stats import gaussian_kde
 from matplotlib.pyplot import Rectangle
@@ -96,7 +96,8 @@ with open(path.join(pth, fle)) as src:
         background[cell_no, drug_no, :] = np.array([row[i] for i in [4, 5, 36, 37]])
         concentrations[cell_no, drug_no, :] = np.array([0]+row[39:48])
 
-# print storage
+
+# print storage.shape
 # print background
 # print concentrations
 # print np.std(remove_nan(background))
@@ -120,6 +121,10 @@ foldlist = []
 for index, drug in sorted(drug_idx_rv.items()):
     drug_action = storage[:, drug_idx[drug], :, :]
     foldlist.append(get_resistant_susceptible(drug_action, drug, blank_line=sensible_max))
+    # if 'Tykerb' in drug:
+    #     pretty_gradual_plot(storage[:, index, :, :], concentrations[:, index, :], cell_idx_rv, drug, blank_line=sensible_max)
+    #     pretty_get_resistant_susceptible(drug_action, cell_idx_rv, drug,
+    #             blank_line=sensible_max, concentrations=concentrations[:, drug_idx[drug], :])
 flds = np.array(foldlist)
 
 
@@ -195,7 +200,7 @@ def plot_action_map(fields, Drug1=None, Drug2=None):
         plt.yticks(range(0, len(drug_idx)), [drug for i, drug in sorted(drug_idx_rv.items())], rotation='horizontal', )
         plt.xticks(range(0, len(cell_idx)), [cell for i, cell in sorted(cell_idx_rv.items())], rotation='vertical')
         plt.legend((red, light_red, grey, light_blue, blue),
-                   ('Resistant', 'Partially Resistant', 'No specific phenotype', 'Susceptible', 'Killed'),
+                   ('Resistant', 'Partially Resistant', 'Weakly resistant', 'Susceptible', 'Killed'),
                    bbox_to_anchor=(0., 1.02, 1., .102), loc=3, ncol=3, mode="expand", borderaxespad=0.,)
         plt.show()
 
@@ -281,7 +286,9 @@ def round_show(matrix):
     # plot_action_map(flds, int(coords[0]), int(coords[1]))
     return index
 
-# plot_action_map(flds)
+
+
+plot_action_map(flds)
 # plot_action_map(flds, 'Rapamycin', 'Fascaplysin')
 
 # per_flds = random_permute(flds, 1)
