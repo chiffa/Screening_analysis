@@ -8,7 +8,7 @@ from math import sqrt
 from Support import pretty_gradual_plot, get_resistant_susceptible, pretty_get_resistant_susceptible
 import matplotlib as mlb
 from itertools import product
-from Linalg_routines import hierchical_clustering, show_matrix_with_names
+from chiffatools.Linalg_routines import hierchical_clustering, show_matrix_with_names
 from scipy.stats import gaussian_kde
 from matplotlib.pyplot import Rectangle
 

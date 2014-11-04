@@ -20,9 +20,9 @@ mlb.rcParams['figure.figsize'] = (30,20)
 # todo: add discounting for the yeast division lag in the new cells.
 # todo: Normalize OD with respect to the empty wells
 
-file_location = 'U:/ank/2014/Screen_with_Jin/10.07.2014'
+file_location = 'U:/ank/2014/Screen_with_Jin/10.31.2014'
 # file_name = 'Tecan_9-26-2014.xlsx'
-file_name = 'Book2.xlsx'
+file_name = 'Book1.xlsx'
 d_time = 15./60.
 
 
@@ -101,7 +101,7 @@ def analyse(plates_stack, zoomlist):
 
 
 def correct(plate, position, injections):
-    new_plate = np.zeros((plate_3D_array.shape[0]+injections-1, plate_3D_array.shape[1], plate_3D_array.shape[2]))
+    new_plate = np.zeros((plate.shape[0]+injections-1, plate.shape[1], plate.shape[2]))
     new_plate[:position+1, :, :] = plate[:position+1, :, :]
     new_plate[position+injections-1:, :, :] = plate[position:, :, :]
     diffplate = (plate[position+1, :, :] - plate[position, :, :]) / float(injections)
@@ -110,15 +110,33 @@ def correct(plate, position, injections):
     return new_plate
 
 
+def del_exception(plate, position):
+    new_plate = np.zeros((plate.shape[0]-1, plate.shape[1], plate.shape[2]))
+    new_plate[:position, :, :] = plate[:position, :, :]
+    print position
+    new_plate[position:, :, :] = plate[position+1:, :, :]
+    return new_plate
+
+
+def del_range(plate, positionList):
+    for position in positionList:
+        plate = del_exception(plate, position)
+    return plate
+
+
 if __name__ == "__main__":
     plate_3D_array = extract_plate_dit()
-    plate_3D_array = correct(plate_3D_array, 174, 6)
+    plate_3D_array = del_exception(plate_3D_array, 220)
+    plate_3D_array = del_exception(plate_3D_array, 220)
+    plate_3D_array = correct(plate_3D_array, 219, 6)
+    # del_range(plate_3D_array, range(220,222))
     plate_3D_array = plate_3D_array - np.min(plate_3D_array) + 0.001
-    zoomlist = [
-                [(5, 6), (6, 6), (5, 2), (6, 2)],
-                [(5, 6), (6, 6), (3, 6), (4, 6)],
-                [(5, 6), (6, 6), (1, 6), (2, 6)],
-                [(5, 6), (6, 6), (3, 7), (4, 7)],
-                [(2, 6), (6, 6), (3, 7), (4, 7), (1, 2), (2, 2)],
-                ]
+    zoomlist = []
+    # zoomlist = [
+    #             [(5, 6), (6, 6), (5, 2), (6, 2)],
+    #             [(5, 6), (6, 6), (3, 6), (4, 6)],
+    #             [(5, 6), (6, 6), (1, 6), (2, 6)],
+    #             [(5, 6), (6, 6), (3, 7), (4, 7)],
+    #             [(2, 6), (6, 6), (3, 7), (4, 7), (1, 2), (2, 2)],
+    #             ]
     analyse(plate_3D_array, zoomlist)
