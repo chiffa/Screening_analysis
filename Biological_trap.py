@@ -109,13 +109,20 @@ compare = make_comparator(max(sensible_max - median, median - sensible_min))
 
 mlb.rcParams['figure.figsize'] = (20,15)
 
-drug = 'Vorinostat'
+drug = '17-AAG'
 example = storage[:, drug_idx[drug], :, :]
 example_concs = concentrations[:, drug_idx[drug], :]
 
-# pretty_gradual_plot(example, example_concs, cell_idx_rv, drug, blank_line=sensible_max)
+pretty_gradual_plot(example, example_concs, cell_idx_rv, drug, blank_line=sensible_max)
 # print get_resistant_susceptible(example, drug, blank_line=sensible_max)
 
+
+drug = 'BIBW2992'
+example = storage[:, drug_idx[drug], :, :]
+example_concs = concentrations[:, drug_idx[drug], :]
+
+pretty_gradual_plot(example, example_concs, cell_idx_rv, drug, blank_line=sensible_max)
+# print get_resistant_susceptible(example, drug, blank_line=sensible_max)
 
 foldlist = []
 for index, drug in sorted(drug_idx_rv.items()):
