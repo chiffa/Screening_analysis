@@ -311,12 +311,12 @@ round_show(collector_array)
 # plt.show()
 # plt.clf()
 
-synergy = collector_array.copy()
-synergy[synergy < 0.99] = 101
-np.fill_diagonal(synergy, 0)
-msk = np.logical_and(synergy<100, synergy>0.01)
-synergy[msk] = 1.0 / synergy[msk]
-round_show(synergy)
+# synergy = collector_array.copy()
+# synergy[synergy < 0.99] = 101
+# np.fill_diagonal(synergy, 0)
+# msk = np.logical_and(synergy<100, synergy>0.01)
+# synergy[msk] = 1.0 / synergy[msk]
+# round_show(synergy)
 
 
 # anti_synergy = collector_array.copy()
