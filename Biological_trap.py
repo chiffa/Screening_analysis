@@ -11,6 +11,9 @@ from itertools import product
 from chiffatools.Linalg_routines import hierchical_clustering, show_matrix_with_names
 from scipy.stats import gaussian_kde
 from matplotlib.pyplot import Rectangle
+from Karyotype_retriever import compute_all_karyotypes
+
+locus, cell_line_name = compute_all_karyotypes()
 
 pth = 'U:\\ank\\2014\\BRU_GBO\\4th_gen'
 fle = 'gb-breast_cancer.tsv'
@@ -24,7 +27,7 @@ headers = ['cellline', 'compound', 'drug_plate_id', 'T0_plate_id', 'background_o
            'c6', 'c7', 'c8', 'c9', 'units']
 
 
-def index(myset):
+def index_f(myset):
     return dict((elt, i) for i, elt in enumerate(myset))
 
 def broadcast(subline):
@@ -62,8 +65,8 @@ with open(path.join(pth, fle)) as src:
         cells.append(row[0])
         drugs.append(row[1])
 
-cell_idx = index(set(cells))
-drug_idx = index(set(drugs))
+cell_idx = index_f(set(cells))
+drug_idx = index_f(set(drugs))
 
 cell_idx_rv = dict([(value, key) for key, value in cell_idx.iteritems()])
 drug_idx_rv = dict([(value, key) for key, value in drug_idx.iteritems()])
@@ -109,19 +112,11 @@ compare = make_comparator(max(sensible_max - median, median - sensible_min))
 
 mlb.rcParams['figure.figsize'] = (20,15)
 
-drug = '17-AAG'
-example = storage[:, drug_idx[drug], :, :]
-example_concs = concentrations[:, drug_idx[drug], :]
-
-pretty_gradual_plot(example, example_concs, cell_idx_rv, drug, blank_line=sensible_max)
-# print get_resistant_susceptible(example, drug, blank_line=sensible_max)
-
-
-drug = 'BIBW2992'
-example = storage[:, drug_idx[drug], :, :]
-example_concs = concentrations[:, drug_idx[drug], :]
-
-pretty_gradual_plot(example, example_concs, cell_idx_rv, drug, blank_line=sensible_max)
+# drug = '17-AAG'
+# example = storage[:, drug_idx[drug], :, :]
+# example_concs = concentrations[:, drug_idx[drug], :]
+#
+# pretty_gradual_plot(example, example_concs, cell_idx_rv, drug, blank_line=sensible_max)
 # print get_resistant_susceptible(example, drug, blank_line=sensible_max)
 
 foldlist = []
@@ -295,7 +290,7 @@ def round_show(matrix):
 
 
 
-plot_action_map(flds)
+# plot_action_map(flds)
 # plot_action_map(flds, 'Rapamycin', 'Fascaplysin')
 
 # per_flds = random_permute(flds, 1)
@@ -305,22 +300,37 @@ collector_array = characterize_array(flds, 'original', 1)
 plt.clf()
 # drugnames = [drug for i, drug in sorted(drug_idx_rv.items())]
 # show_matrix_with_names(collector_array, drugnames, drugnames)
-round_show(collector_array)
+# round_show(collector_array)
 # permcollector_array = characterize_array(per_flds, 'permuted')
 # plt.legend()
 # plt.show()
 # plt.clf()
 
-# synergy = collector_array.copy()
-# synergy[synergy < 0.99] = 101
-# np.fill_diagonal(synergy, 0)
-# msk = np.logical_and(synergy<100, synergy>0.01)
-# synergy[msk] = 1.0 / synergy[msk]
-# round_show(synergy)
 
 
-# anti_synergy = collector_array.copy()
-# anti_synergy[anti_synergy > 0.4] = 101
-# np.fill_diagonal(anti_synergy, 0)
-# round_show(anti_synergy)
+print locus.shape
+cell_line_name = cell_line_name.tolist()
+c_dict = index_f(cell_line_name)
+print cell_line_name
+print cell_idx.keys()
+
+ordered_locus = np.empty((24, cellno))
+print ordered_locus.shape
+ordered_locus.fill(np.NaN)
+
+count = 0
+for i, name in cell_idx_rv.iteritems():
+    name_idx = c_dict.get(name, -1)
+    if name_idx < 0:
+        print '%s not found' % name
+        count += 1
+    else:
+        ordered_locus[:, i] = locus[name_idx, :]
+
+print count
+print ordered_locus
+plt.imshow(ordered_locus, interpolation='nearest', cmap='coolwarm')
+plt.show()
+
+# TODO: Use lasso from scikits learn to perform the regression of drug action towards chromosome classification
 
