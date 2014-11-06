@@ -12,6 +12,9 @@ from chiffatools.Linalg_routines import hierchical_clustering, show_matrix_with_
 from scipy.stats import gaussian_kde
 from matplotlib.pyplot import Rectangle
 from Karyotype_retriever import compute_all_karyotypes
+from sklearn import linear_model
+from scipy.stats import spearmanr
+from chiffatools.Linalg_routines import show_matrix_with_names
 
 locus, cell_line_name = compute_all_karyotypes()
 
@@ -110,7 +113,7 @@ sensible_max = np.percentile(remove_nan(background), 98)
 
 compare = make_comparator(max(sensible_max - median, median - sensible_min))
 
-mlb.rcParams['figure.figsize'] = (20,15)
+mlb.rcParams['figure.figsize'] = (20, 15)
 
 # drug = '17-AAG'
 # example = storage[:, drug_idx[drug], :, :]
@@ -306,7 +309,9 @@ plt.clf()
 # plt.show()
 # plt.clf()
 
-
+###############################################################################
+###############################################################################
+###############################################################################
 
 print locus.shape
 cell_line_name = cell_line_name.tolist()
@@ -329,8 +334,101 @@ for i, name in cell_idx_rv.iteritems():
 
 print count
 print ordered_locus
+# plt.imshow(ordered_locus, interpolation='nearest', cmap='coolwarm')
+# plt.show()
+
+# drug = '17-AAG'
+# example = storage[:, drug_idx[drug], :, :]
+# example_concs = concentrations[:, drug_idx[drug], :]
+
+
+ax1 = plt.subplot(211)
+plt.imshow(flds, interpolation='nearest', cmap='coolwarm')
+plt.setp(ax1.get_xticklabels(), fontsize=6)
+ax2 = plt.subplot(212, sharex=ax1)
 plt.imshow(ordered_locus, interpolation='nearest', cmap='coolwarm')
 plt.show()
 
-# TODO: Use lasso from scikits learn to perform the regression of drug action towards chromosome classification
+def show_correlation(idx):
+    re_fltr=np.logical_not(np.logical_or(np.isnan(flds[idx,:]),
+                                       np.any(np.isnan(ordered_locus), axis=0)))
 
+    pre_fields = flds[idx, re_fltr]
+    pf = pre_fields.reshape(1, pre_fields.shape[0])
+    sp = ordered_locus[:, re_fltr]
+
+    ax1 = plt.subplot(211)
+    plt.imshow(pf,
+               interpolation='nearest', cmap='coolwarm')
+    plt.setp(ax1.get_xticklabels(), fontsize=6)
+    ax2 = plt.subplot(212, sharex=ax1)
+    plt.imshow(sp,
+               interpolation='nearest', cmap='coolwarm')
+    plt.show()
+
+# show_correlation(1)
+rho, p_val = spearmanr(ordered_locus, axis=1)
+
+fltr = np.logical_not(np.logical_and(p_val < 0.05, np.absolute(rho) > 0.3))
+p_val[fltr] = np.NaN
+rho[fltr] = np.NaN
+np.fill_diagonal(p_val, np.NaN)
+np.fill_diagonal(rho, np.NaN)
+
+
+plt.subplot(211)
+plt.imshow(rho,
+           interpolation='nearest', cmap='coolwarm')
+plt.colorbar()
+plt.subplot(212)
+plt.imshow(p_val,
+           interpolation='nearest', cmap='coolwarm')
+plt.colorbar()
+plt.show()
+
+def chr_correlation(idex):
+    re_fltr=np.logical_not(np.logical_or(np.isnan(flds[idex,:]),
+                                   np.any(np.isnan(ordered_locus), axis=0)))
+    pre_fields = flds[idex, re_fltr]
+    pf = pre_fields.reshape(1, pre_fields.shape[0])
+    sp = ordered_locus[:, re_fltr]
+    np.apply_along_axis(spearmanr, 1, sp, pf.flatten())
+    intermediate = np.apply_along_axis(spearmanr, 1, sp, pf.flatten())
+    return np.split(intermediate.T, 2)
+
+def gross_accumulate():
+    rho = []
+    p_val = []
+    for i in range(0, flds.shape[0]):
+        t_rho, t_p_val = chr_correlation(i)
+        rho.append(t_rho.flatten())
+        p_val.append(t_p_val.flatten())
+    return np.array(rho), np.array(p_val)
+
+t_rho, t_p_val = gross_accumulate()
+
+selector = np.logical_not(np.logical_and(t_p_val < 0.05, np.absolute(t_rho) > 0.3))
+
+t_rho[selector] = np.NaN
+t_p_val[selector] =np.NaN
+
+drugnames = np.array([drug for index, drug in sorted(drug_idx_rv.items())])
+
+sel2 = np.any(np.logical_not(np.isnan(t_rho)), axis=1)
+t_rho = t_rho[sel2,:]
+t_p_val = t_p_val[sel2,:]
+drugnames = drugnames[sel2].tolist()
+
+show_matrix_with_names(t_rho,
+                       drugnames,
+                       range(1, 25),
+                       colormap = 'coolwarm')
+
+show_matrix_with_names(t_p_val,
+                       drugnames,
+                       range(1, 25),
+                       colormap = 'coolwarm')
+
+show_correlation(drug_idx['Epirubicin'])
+
+show_correlation(drug_idx['Bortezomib'])

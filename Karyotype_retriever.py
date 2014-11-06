@@ -5,8 +5,6 @@ from os import path
 import numpy as np
 from matplotlib import pyplot as plt
 from chiffatools import hmm
-# from chiffatools.Linalg_routines import s
-from scipy.stats import gaussian_kde
 
 # intra-chromosome v.s. interchromosome variance?
 # normalized within 50% lowest of the variance within a single chromosome?
@@ -61,7 +59,7 @@ def compute_karyotype(lane, plotting=False, threshold = 0.33):
         if x >= 0 and y == 1:
             return 1
         if x == -1 and y == 1:
-            return np.NaN
+            return 0
 
     def plot_classification():
 
@@ -91,6 +89,7 @@ def compute_karyotype(lane, plotting=False, threshold = 0.33):
     collector = np.array(collector)
     return collector
 
+
 def compute_all_karyotypes():
 
     def plot():
@@ -99,9 +98,10 @@ def compute_all_karyotypes():
 
     chromlist = []
     for i in range(1, locuses.shape[1]):
-        chromlist.append(compute_karyotype(i, plotting=False, threshold=0.35))
+        chromlist.append(compute_karyotype(i, plotting=True, threshold=0.35))
     chromlist = np.array(chromlist).astype(np.float64)
     return chromlist, header[1:locuses.shape[1]]
+
 
 if __name__ == "__main__":
     print compute_all_karyotypes()
