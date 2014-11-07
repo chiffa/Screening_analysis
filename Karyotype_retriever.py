@@ -98,7 +98,7 @@ def compute_all_karyotypes():
 
     chromlist = []
     for i in range(1, locuses.shape[1]):
-        chromlist.append(compute_karyotype(i, plotting=True, threshold=0.35))
+        chromlist.append(compute_karyotype(i, plotting=False, threshold=0.35))
     chromlist = np.array(chromlist).astype(np.float64)
     return chromlist, header[1:locuses.shape[1]]
 

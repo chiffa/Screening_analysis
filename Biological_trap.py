@@ -293,7 +293,7 @@ def round_show(matrix):
 
 
 
-# plot_action_map(flds)
+plot_action_map(flds)
 # plot_action_map(flds, 'Rapamycin', 'Fascaplysin')
 
 # per_flds = random_permute(flds, 1)

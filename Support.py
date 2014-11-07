@@ -187,8 +187,11 @@ def get_resistant_susceptible(data, drug_name, blank_line=200):
     ret_array[reverse_filter[resistant]] = 1
     ret_array[reverse_filter[susceptible]] = -0.5
     ret_array[reverse_filter[destroyed]] = -1
+    l_neutral = len(reverse_filter.tolist())-len(resistant)-len(susceptible)-len(destroyed)
 
-    if len(resistant)<1:
+    if 'Fasca' in drug_name:
+        print len(reverse_filter.tolist()), len(resistant), len(susceptible), len(destroyed)
+    if len(resistant) + len(susceptible) + l_neutral < 5:
         int_ret = get_resistant_susceptible(data[:,:-1,:], drug_name, blank_line=blank_line)
         int_ret[int_ret>0] = int_ret[int_ret>0]*0.5
         flt = int_ret > 0
