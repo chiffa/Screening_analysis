@@ -5,6 +5,9 @@ from os import path
 import numpy as np
 from matplotlib import pyplot as plt
 from chiffatools import hmm
+from chiffatools. Linalg_routines import rm_nans
+from scipy.stats import ttest_ind
+from itertools import combinations
 
 # intra-chromosome v.s. interchromosome variance?
 # normalized within 50% lowest of the variance within a single chromosome?
@@ -71,11 +74,16 @@ def compute_karyotype(lane, plotting=False, threshold = 0.33):
         ax2 = plt.subplot(312, sharex=ax1)
         plt.plot(current_lane, 'k.')
         plt.setp(ax2.get_xticklabels(), visible=False)
+        ax3 = plt.subplot(313)
+        plt.imshow(t_mat, interpolation='nearest', cmap='coolwarm')
+        plt.setp(ax3.get_xticklabels(), visible=False)
         plt.show()
 
     current_lane = locuses[:, lane]
     binarized = (current_lane > threshold).astype(np.int16) - (current_lane < -threshold) + 1
     parsed = np.array(hmm.viterbi(parsing_hmm, initial_dist, binarized))
+
+    t_mat = t_test_matrix(lane)
 
     collector = []
     for i in chroms:
@@ -103,5 +111,20 @@ def compute_all_karyotypes():
     return chromlist, header[1:locuses.shape[1]]
 
 
+def t_test_matrix(lane):
+
+    current_lane = locuses[:, lane]
+    dst = broken_table.shape[0]
+    p_vals = np.empty((dst, dst))
+    p_vals.fill(np.NaN)
+
+    for i, j in combinations(range(0, dst), 2):
+        _, p_val = ttest_ind(rm_nans(current_lane[broken_table[i, :]]), rm_nans(current_lane[broken_table[j, :]]), False)
+        p_vals[i, j] = p_val
+
+    return p_vals
+
+
 if __name__ == "__main__":
-    print compute_all_karyotypes()
+    compute_karyotype(6, True, 0.35)
+    # print compute_all_karyotypes()

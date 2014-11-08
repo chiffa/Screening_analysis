@@ -349,7 +349,7 @@ ax2 = plt.subplot(212, sharex=ax1)
 plt.imshow(ordered_locus, interpolation='nearest', cmap='coolwarm')
 plt.show()
 
-def show_correlation(idx):
+def show_correlation(idx , cell_line_names=None, drug_names=None):
     re_fltr=np.logical_not(np.logical_or(np.isnan(flds[idx,:]),
                                        np.any(np.isnan(ordered_locus), axis=0)))
 
@@ -360,10 +360,16 @@ def show_correlation(idx):
     ax1 = plt.subplot(211)
     plt.imshow(pf,
                interpolation='nearest', cmap='coolwarm')
-    plt.setp(ax1.get_xticklabels(), fontsize=6)
+    if drug_names:
+        plt.yticks(range(0, len(drug_names)), drug_names, rotation='horizontal')
+    plt.setp(ax1.get_xticklabels(), visible=False)
     ax2 = plt.subplot(212, sharex=ax1)
     plt.imshow(sp,
                interpolation='nearest', cmap='coolwarm')
+    plt.yticks(range(0, 24), range(1, 25), rotation='horizontal')
+    if cell_line_names:
+        cell_line_names = np.array(cell_line_names)[re_fltr].tolist()
+        plt.xticks(range(0, len(cell_line_names)), cell_line_names, rotation='vertical')
     plt.show()
 
 # show_correlation(1)
@@ -429,6 +435,8 @@ show_matrix_with_names(t_p_val,
                        range(1, 25),
                        colormap = 'coolwarm')
 
-show_correlation(drug_idx['Epirubicin'])
+cellline_names = [cell for i, cell in sorted(cell_idx_rv.items())]
 
-show_correlation(drug_idx['Bortezomib'])
+show_correlation(drug_idx['Epirubicin'], cellline_names, ['Epirubicin'])
+
+show_correlation(drug_idx['Everolimus'], cellline_names, ['Everolimus'])
