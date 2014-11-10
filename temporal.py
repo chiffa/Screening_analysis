@@ -16,7 +16,9 @@ def show_matrix_with_names(matrix, vert_names, horiz_names, colormap='b_jet', ov
                 for mod_decider in subtype:
                     if mod_decider in bearer:
                         modded = True
-                        ret_list.append(bearer+' '+character)
+                        print bearer
+                        print character
+                        ret_list.append(bearer+' '+str(character))
                         break
                 if not modded:
                     ret_list.append(bearer)
