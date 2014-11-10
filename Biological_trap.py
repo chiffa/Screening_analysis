@@ -311,7 +311,7 @@ def round_show(matrix):
 
 
 
-plot_action_map(flds)
+# plot_action_map(flds)
 # plot_action_map(flds, 'Rapamycin', 'Fascaplysin')
 
 # per_flds = random_permute(flds, 1)
@@ -446,12 +446,12 @@ t_p_val = t_p_val[sel2, :]
 drugnames = drugnames[sel2].tolist()
 
 show_matrix_with_names(t_rho,
-                       drugnames,
+                       (drugnames, Cancer_drugs, Breast_cancer_drugs),
                        range(1, 25),
                        colormap = 'coolwarm')
 
 show_matrix_with_names(t_p_val,
-                       drugnames,
+                       (drugnames, Cancer_drugs, Breast_cancer_drugs),
                        range(1, 25),
                        colormap = 'coolwarm')
 

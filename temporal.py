@@ -25,6 +25,7 @@ def show_matrix_with_names(matrix, vert_names, horiz_names, colormap='b_jet', ov
         new_vert_names = vert_names
         for idux, subtype in enumerate(vert_names):
             if idux > 0:
+                print ''.join(['*']*idux)
                 new_vert_names = rename(new_vert_names, subtype, ''.join(['*']*idux))
 
         return new_vert_names
@@ -43,6 +44,7 @@ def show_matrix_with_names(matrix, vert_names, horiz_names, colormap='b_jet', ov
     plt.imshow(matrix, interpolation='nearest', cmap=costum_cmap)
     plt.colorbar()
     if overlay:
+        # we need to transform out of imshow
         plt.scatter(overlay[0][0], overlay[0][1], label=overlay[2])
         plt.legend(bbox_to_anchor=(0., 1.02, 1., .102), loc=3, mode="expand", borderaxespad=0.)
     plt.tick_params(axis='both', labelsize=10)
