@@ -14,7 +14,9 @@ from matplotlib.pyplot import Rectangle
 from Karyotype_retriever import compute_all_karyotypes
 from sklearn import linear_model
 from scipy.stats import spearmanr
-from chiffatools.Linalg_routines import show_matrix_with_names
+from chiffatools.Linalg_routines import show_matrix_with_names, rm_nans
+
+from temporal import show_matrix_with_names
 
 locus, cell_line_name = compute_all_karyotypes()
 
@@ -29,6 +31,13 @@ headers = ['cellline', 'compound', 'drug_plate_id', 'T0_plate_id', 'background_o
            'T0_background_od1', 'T0_background_od2', 'T0_median_od', 'c1', 'c2', 'c3', 'c4', 'c5',
            'c6', 'c7', 'c8', 'c9', 'units']
 
+Cancer_drugs = ['Velcade', 'Bortezomib', 'Imatinib', 'Sunitinib Malate', 'Vinorelbine',
+                'Temsirolimus', 'Vorinostat', 'Sorafenib']
+
+Breast_cancer_drugs = ['Epirubicin', 'Ixabepilone', 'Tykerb:IGFR1R (1:1)', 'Everolimus',
+                       'Doxorubicin']
+
+
 
 def index_f(myset):
     return dict((elt, i) for i, elt in enumerate(myset))
@@ -41,9 +50,9 @@ def broadcast(subline):
         arr = np.array(subline)
         return arr.reshape((10, 3))
 
-def remove_nan(array):
-    array = array.flatten()
-    return array[np.logical_not(np.isnan(array))]
+# def rm_nans(array):
+#     array = array.flatten()
+#     return array[np.logical_not(np.isnan(array))]
 
 def make_comparator(percentile_5_range):
     st = sqrt(2)
@@ -103,13 +112,22 @@ with open(path.join(pth, fle)) as src:
         concentrations[cell_no, drug_no, :] = np.array([0]+row[39:48])
 
 
+ban_index = []
+ban_names = []
+
+# TODO: clean up the data down here
+for cell, index in cell_idx.iteritems():
+    pass
+
+
+
 # print storage.shape
 # print background
 # print concentrations
 # print np.std(remove_nan(background))
-median = np.percentile(remove_nan(background), 50)
-sensible_min = np.percentile(remove_nan(background), 2)
-sensible_max = np.percentile(remove_nan(background), 98)
+median = np.percentile(rm_nans(background), 50)
+sensible_min = np.percentile(rm_nans(background), 2)
+sensible_max = np.percentile(rm_nans(background), 98)
 
 compare = make_comparator(max(sensible_max - median, median - sensible_min))
 
@@ -137,7 +155,7 @@ from scipy.stats import itemfreq
 fulter = np.all(np.logical_not(np.isnan(storage)), axis=(2,3))
 cnt = np.sum(fulter, axis = 1)
 for i, cell in sorted(cell_idx_rv.items()):
-    ifrq = itemfreq((remove_nan(flds[:,i])+1)*2)
+    ifrq = itemfreq((rm_nans(flds[:,i])+1)*2)
     collector = [0, 0, 0, 0, 0]
     for val, count in ifrq:
         collector[int(val)]=int(count/float(cnt[i])*100)
@@ -299,8 +317,8 @@ plot_action_map(flds)
 # per_flds = random_permute(flds, 1)
 # plot_action_map(per_flds)
 
-collector_array = characterize_array(flds, 'original', 1)
-plt.clf()
+# collector_array = characterize_array(flds, 'original', 1)
+# plt.clf()
 # drugnames = [drug for i, drug in sorted(drug_idx_rv.items())]
 # show_matrix_with_names(collector_array, drugnames, drugnames)
 # round_show(collector_array)
@@ -308,6 +326,8 @@ plt.clf()
 # plt.legend()
 # plt.show()
 # plt.clf()
+
+# raise Exception('Early interrupt')
 
 ###############################################################################
 ###############################################################################
@@ -421,8 +441,8 @@ t_p_val[selector] =np.NaN
 drugnames = np.array([drug for index, drug in sorted(drug_idx_rv.items())])
 
 sel2 = np.any(np.logical_not(np.isnan(t_rho)), axis=1)
-t_rho = t_rho[sel2,:]
-t_p_val = t_p_val[sel2,:]
+t_rho = t_rho[sel2, :]
+t_p_val = t_p_val[sel2, :]
 drugnames = drugnames[sel2].tolist()
 
 show_matrix_with_names(t_rho,
