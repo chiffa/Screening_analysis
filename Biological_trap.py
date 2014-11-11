@@ -15,6 +15,8 @@ from Karyotype_retriever import compute_all_karyotypes
 from sklearn import linear_model
 from scipy.stats import spearmanr
 from chiffatools.Linalg_routines import show_matrix_with_names, rm_nans
+from chiffatools.wrappers import debug
+
 
 locus, cell_line_name = compute_all_karyotypes()
 
@@ -142,11 +144,12 @@ cell_idx_rv = dict([(value, key) for key, value in cell_idx.iteritems()])
 
 print cell_idx
 print cell_idx_rv
+
+cellno = len(cell_idx)
+drugno = len(drug_idx)
 ###########################################################################
 #
 ###########################################################################
-
-# raise Exception('interrupt for now')
 
 # print storage.shape
 # print background
@@ -292,7 +295,7 @@ def plot_action_map(fields, Drug1=None, Drug2=None):
         plt.show()
 
 
-def round_show(matrix):
+def round_show(matrix, unravel=False):
     mat_source = matrix.copy()
     drugnames = [drug for i, drug in sorted(drug_idx_rv.items())]
     index = hierchical_clustering(matrix, drugnames)
@@ -312,30 +315,32 @@ def round_show(matrix):
     fltr = np.isnan(matrix)
     matrix[fltr] = 0
     crds = []
-    while np.amax(matrix) > 0:
-        coords = np.unravel_index(np.argmax(matrix), matrix.shape)
-        crds.append(coords)
-        matrix[coords] = 0
-        matrix[coords[1], coords[0]] = 0
 
-    for i, coords in enumerate(crds):
-        idx1 = coords[0]
-        name1 = drug_idx_rv[coords[0]]
-        idx2 = coords[1]
-        name2 = drug_idx_rv[coords[1]]
+    if unravel is True:
+        while np.amax(matrix) > 0:
+            coords = np.unravel_index(np.argmax(matrix), matrix.shape)
+            crds.append(coords)
+            matrix[coords] = 0
+            matrix[coords[1], coords[0]] = 0
 
-        ax = plt.subplot(len(crds), 1, i+1)
-        ax.imshow(flds[(idx1, idx2),:], interpolation='nearest', cmap='coolwarm')
-        ax.tick_params(axis='both',  labelsize=8)
-        plt.yticks(range(0, 2), [name1, name2], rotation='horizontal', )
-        if i==0:
-            ax.legend((red, light_red, grey, light_blue, blue),
-                   ('Resistant', 'Partially Resistant', 'Weakly resistant', 'Susceptible', 'Killed'),
-                   bbox_to_anchor=(0., 1.02, 1., .102), loc=3, ncol=3, mode="expand", borderaxespad=0.,)
-        if i == len(crds)-1:
-            plt.xticks(range(0, len(cell_idx)), [cell for i, cell in sorted(cell_idx_rv.items())], rotation='vertical')
-    plt.show()
-    # plot_action_map(flds, int(coords[0]), int(coords[1]))
+        for i, coords in enumerate(crds):
+            idx1 = coords[0]
+            name1 = drug_idx_rv[coords[0]]
+            idx2 = coords[1]
+            name2 = drug_idx_rv[coords[1]]
+
+            ax = plt.subplot(len(crds), 1, i+1)
+            ax.imshow(flds[(idx1, idx2),:], interpolation='nearest', cmap='coolwarm')
+            ax.tick_params(axis='both',  labelsize=8)
+            plt.yticks(range(0, 2), [name1, name2], rotation='horizontal', )
+            if i==0:
+                ax.legend((red, light_red, grey, light_blue, blue),
+                       ('Resistant', 'Partially Resistant', 'Weakly resistant', 'Susceptible', 'Killed'),
+                       bbox_to_anchor=(0., 1.02, 1., .102), loc=3, ncol=3, mode="expand", borderaxespad=0.,)
+            if i == len(crds)-1:
+                plt.xticks(range(0, len(cell_idx)), [cell for i, cell in sorted(cell_idx_rv.items())], rotation='vertical')
+        plt.show()
+
     return index
 
 
@@ -346,11 +351,18 @@ def round_show(matrix):
 # per_flds = random_permute(flds, 1)
 # plot_action_map(per_flds)
 
-collector_array = characterize_array(flds, 'original', 1)
+
+# collector_array = characterize_array(flds, 'original', 1)
+
+
 # plt.clf()
 # drugnames = [drug for i, drug in sorted(drug_idx_rv.items())]
 # show_matrix_with_names(collector_array, drugnames, drugnames)
-round_show(collector_array)
+
+
+# round_show(collector_array)
+
+
 # permcollector_array = characterize_array(per_flds, 'permuted')
 # plt.legend()
 # plt.show()
@@ -361,6 +373,8 @@ round_show(collector_array)
 ###############################################################################
 ###############################################################################
 ###############################################################################
+
+# TODO: find a memory leak here.
 
 print locus.shape
 cell_line_name = cell_line_name.tolist()
