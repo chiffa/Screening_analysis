@@ -16,8 +16,6 @@ from sklearn import linear_model
 from scipy.stats import spearmanr
 from chiffatools.Linalg_routines import show_matrix_with_names, rm_nans
 
-from temporal import show_matrix_with_names
-
 locus, cell_line_name = compute_all_karyotypes()
 
 pth = 'U:\\ank\\2014\\BRU_GBO\\4th_gen'
@@ -115,11 +113,40 @@ with open(path.join(pth, fle)) as src:
 ban_index = []
 ban_names = []
 
-# TODO: clean up the data down here
-for cell, index in cell_idx.iteritems():
-    pass
+print cell_line_name
 
+############################################
+# BanHammer is acting here
+############################################
+for index, cell in sorted(cell_idx_rv.items()):
+    if cell in cell_line_name:
+        ban_index.append(index)
+        ban_names.append(cell)
 
+print ban_index
+print ban_names
+
+remap = dict(zip(ban_index, range(0,len(ban_index))))
+print remap
+
+storage = storage[ban_index, :, :, :]
+background = background[ban_index, :, :]
+concentrations = concentrations[ban_index, :, :]
+
+new_cell_idx = {}
+for item in ban_names:
+    new_cell_idx[item] = remap[cell_idx[item]]
+
+cell_idx = new_cell_idx
+cell_idx_rv = dict([(value, key) for key, value in cell_idx.iteritems()])
+
+print cell_idx
+print cell_idx_rv
+###########################################################################
+#
+###########################################################################
+
+# raise Exception('interrupt for now')
 
 # print storage.shape
 # print background
@@ -275,7 +302,9 @@ def round_show(matrix):
     matrix[matrix==101] = np.NaN
     # np.fill_diagonal(matrix, 1)
     # matrix = 1.0 / matrix
-    show_matrix_with_names(matrix, drugnames, drugnames)
+    show_matrix_with_names(matrix,
+                           (drugnames, Cancer_drugs, Breast_cancer_drugs),
+                           (drugnames, Cancer_drugs, Breast_cancer_drugs) )
 
     matrix = mat_source
     matrix[matrix==101] = np.NaN
@@ -317,11 +346,11 @@ def round_show(matrix):
 # per_flds = random_permute(flds, 1)
 # plot_action_map(per_flds)
 
-# collector_array = characterize_array(flds, 'original', 1)
+collector_array = characterize_array(flds, 'original', 1)
 # plt.clf()
 # drugnames = [drug for i, drug in sorted(drug_idx_rv.items())]
 # show_matrix_with_names(collector_array, drugnames, drugnames)
-# round_show(collector_array)
+round_show(collector_array)
 # permcollector_array = characterize_array(per_flds, 'permuted')
 # plt.legend()
 # plt.show()
@@ -448,12 +477,9 @@ drugnames = drugnames[sel2].tolist()
 show_matrix_with_names(t_rho,
                        (drugnames, Cancer_drugs, Breast_cancer_drugs),
                        range(1, 25),
-                       colormap = 'coolwarm')
+                       colormap = 'coolwarm',
+                       overlay = (t_p_val<0.01, 'P-value < 0.01'))
 
-show_matrix_with_names(t_p_val,
-                       (drugnames, Cancer_drugs, Breast_cancer_drugs),
-                       range(1, 25),
-                       colormap = 'coolwarm')
 
 cellline_names = [cell for i, cell in sorted(cell_idx_rv.items())]
 
