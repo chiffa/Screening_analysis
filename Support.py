@@ -2,6 +2,7 @@ __author__ = 'ank'
 
 import numpy as np
 from matplotlib import pyplot as plt
+from chiffatools.Linalg_routines import show_matrix_with_names
 
 debug = 0
 
@@ -135,7 +136,7 @@ def pretty_get_resistant_susceptible(data, strain_name_map, drug_name, blank_lin
     print len(reverse_filter), len(resistant), len(susceptible), len(destroyed)
 
     if len(resistant)<1:
-        int_ret = pretty_get_resistant_susceptible(data[:,:-1,:], strain_name_map, drug_name, blank_line=blank_line)
+        int_ret = pretty_get_resistant_susceptible(data[:, :-1, :], strain_name_map, drug_name, blank_line=blank_line)
         int_ret[int_ret>0] = int_ret[int_ret>0]*0.5
         flt = int_ret > 0
         ret_array[flt] = int_ret[flt]
@@ -156,7 +157,7 @@ def pretty_get_resistant_susceptible(data, strain_name_map, drug_name, blank_lin
     return ret_array
 
 
-def get_resistant_susceptible(data, drug_name, blank_line=200):
+def get_resistant_susceptible(data, drug_name, blank_line=200, margin=5, multifilter=1):
 
     filter = np.all(np.logical_not(np.isnan(data)), axis=(1, 2))
     reverse_filter = filter.nonzero()[0]
@@ -164,16 +165,16 @@ def get_resistant_susceptible(data, drug_name, blank_line=200):
     std = np.nanstd(data[filter, :, :], axis=-1)
 
     refmean = mean[:, 0].reshape((mean.shape[0], 1))
-    refstd = std[:, 0].reshape((mean.shape[0], 1))
+    refstd = std[:, 0].reshape ((mean.shape[0], 1))
     rel_mean, rel_std = (mean/refmean, np.sqrt(np.power(refstd, 2)+np.power(std, 2))/mean)
 
     # From here, we are processing just the best survivors v.s. worst survivors
-    dead = mean-std<blank_line
+    dead = mean - std < blank_line
 
     # first, filter out all those that cannot be distinguished from background
     rel_mean[dead] = 0
-    upper = np.percentile(rel_mean, 95, axis = 0).reshape(1, rel_mean.shape[1])
-    lower = np.percentile(rel_mean, 5, axis = 0).reshape(1, rel_mean.shape[1])
+    upper = np.percentile(rel_mean, 100-margin, axis = 0).reshape(1, rel_mean.shape[1])
+    lower = np.percentile(rel_mean, margin, axis = 0).reshape(1, rel_mean.shape[1])
     upper[0, :-2] = 100
     lower[0, :-2] = 0
 
@@ -189,10 +190,9 @@ def get_resistant_susceptible(data, drug_name, blank_line=200):
     ret_array[reverse_filter[destroyed]] = -1
     l_neutral = len(reverse_filter.tolist())-len(resistant)-len(susceptible)-len(destroyed)
 
-    if 'Fasca' in drug_name:
-        print len(reverse_filter.tolist()), len(resistant), len(susceptible), len(destroyed)
-    if len(resistant) + len(susceptible) + l_neutral < 5:
-        int_ret = get_resistant_susceptible(data[:,:-1,:], drug_name, blank_line=blank_line)
+    if len(resistant) + len(susceptible) + l_neutral < multifilter:
+        int_ret = get_resistant_susceptible(data[:,:-1,:], drug_name, blank_line=blank_line,
+                                            margin=margin, multifilter=multifilter)
         int_ret[int_ret>0] = int_ret[int_ret>0]*0.5
         flt = int_ret > 0
         ret_array[flt] = int_ret[flt]
