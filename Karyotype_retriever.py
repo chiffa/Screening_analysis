@@ -119,6 +119,15 @@ def compute_karyotype(lane, plotting=False, threshold = 0.33):
     ct_mat[t_mat < 0.01] = 0.01
     ct_mat = 1 - ct_mat
 
+    # TODO: idea: keep the HMM model for the regression, but determine bounds by normalizing
+    #   On the per-chromosome basis: compute the mean and std
+    #   Eliminate the chromosomes with highest std (bossibly contain inner amplifications)
+    #   determine the bounds of the HMM model.
+    #   Run the HMM rounds iteratively,
+    #       On each iteration, remove losses/gains from the previous model.
+    #       End up with discretized levels.
+    #   Try to gess most likely integer levels of chromosomes/locus gains.
+
     Y = sch.linkage(ct_mat, method='centroid')
     clust_alloc = sch.fcluster(Y, 0.95, criterion='distance')
 
