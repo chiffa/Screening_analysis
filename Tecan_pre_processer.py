@@ -20,7 +20,7 @@ mlb.rcParams['figure.figsize'] = (30,20)
 # todo: add discounting for the yeast division lag in the new cells.
 # todo: Normalize OD with respect to the empty wells
 
-file_location = 'U:/ank/2014/Screen_with_Jin/10.31.2014'
+file_location = 'U:/ank/2014/Screen_with_Jin/11.04.2014'
 # file_name = 'Tecan_9-26-2014.xlsx'
 file_name = 'Book1.xlsx'
 d_time = 15./60.
@@ -126,9 +126,9 @@ def del_range(plate, positionList):
 
 if __name__ == "__main__":
     plate_3D_array = extract_plate_dit()
-    plate_3D_array = del_exception(plate_3D_array, 220)
-    plate_3D_array = del_exception(plate_3D_array, 220)
-    plate_3D_array = correct(plate_3D_array, 219, 6)
+    # plate_3D_array = del_exception(plate_3D_array, 220)
+    # plate_3D_array = del_exception(plate_3D_array, 220)
+    # plate_3D_array = correct(plate_3D_array, 219, 6)
     # del_range(plate_3D_array, range(220,222))
     plate_3D_array = plate_3D_array - np.min(plate_3D_array) + 0.001
     zoomlist = []

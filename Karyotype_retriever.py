@@ -64,15 +64,8 @@ def t_test_matrix(lane):
     for i, j in combinations(range(0, dst), 2):
         _, p_val = ttest_ind(rm_nans(current_lane[broken_table[i, :]]), rm_nans(current_lane[broken_table[j, :]]), False)
         p_vals[i, j] = p_val
-        # median = 1-np.abs(np.median(rm_nans(current_lane[broken_table[i, :]])) -
-        #                 np.median(rm_nans(current_lane[broken_table[j, :]]))) / np.average(np.median(rm_nans(current_lane[broken_table[i, :]])) -
-        #                                                                         np.median(rm_nans(current_lane[broken_table[j, :]])))
-        # p_vals[i, j] = np.sqrt(p_val*median)
     return p_vals
 
-# TODO: possible resolutions:
-#       - mask out local amplification with HMM.
-#       -
 
 def compute_karyotype(lane, plotting=False, threshold = 0.33):
 
