@@ -10,6 +10,7 @@ from scipy.stats import ttest_ind
 from itertools import combinations
 import scipy.cluster.hierarchy as sch
 from scipy.spatial.distance import pdist
+from sklearn.decomposition import FastICA, PCA
 
 # intra-chromosome v.s. interchromosome variance?
 # normalized within 50% lowest of the variance within a single chromosome?
@@ -92,10 +93,11 @@ def compute_karyotype(lane, plotting=False, threshold = 0.33):
                                                          '{0:.2f}'.format(np.std(rm_nans(current_lane)))))
         plt.legend(prop={'size':10})
         plt.setp(ax2.get_xticklabels(), visible=False)
-        ax3 = plt.subplot(313, sharex=ax1)
-        plt.imshow(chromosome_tag, interpolation='nearest', cmap='spectral')
-        plt.imshow(re_classification_tag, interpolation='nearest', cmap='coolwarm')
-        plt.setp(ax3.get_xticklabels(), visible=False)
+        ax3 = plt.subplot(313)
+        plt.plot(total_corr, 'k.')
+        # plt.imshow(chromosome_tag, interpolation='nearest', cmap='spectral')
+        # plt.imshow(re_classification_tag, interpolation='nearest', cmap='coolwarm')
+        # plt.setp(ax3.get_xticklabels(), visible=False)
         plt.show()
 
     current_lane = locuses[:, lane]
@@ -103,6 +105,17 @@ def compute_karyotype(lane, plotting=False, threshold = 0.33):
     current_lane = current_lane / np.std(rm_nans(current_lane))*0.3
     binarized = (current_lane > threshold).astype(np.int16) - (current_lane < -threshold) + 1
     parsed = np.array(hmm.viterbi(parsing_hmm, initial_dist, binarized))
+
+    partial_corr = np.correlate(rm_nans(current_lane), rm_nans(current_lane), mode='full')
+    total_corr = partial_corr[partial_corr.size/2:]
+
+    print broken_table.shape[0]
+    for i in range(0, broken_table.shape[0]):
+        current_chromosome = rm_nans(current_lane[broken_table[i, :]])
+        print i+1, np.mean(current_chromosome), np.std(current_chromosome)
+        print '\t', np.median(current_chromosome), (np.percentile(current_chromosome, 85)-np.percentile(current_chromosome, 15))/2.0
+
+
 
     t_mat = t_test_matrix(lane)
     t_mat[np.isnan(t_mat)] = 0
@@ -114,7 +127,7 @@ def compute_karyotype(lane, plotting=False, threshold = 0.33):
 
     # TODO: idea: keep the HMM model for the regression, but determine bounds by normalizing
     #   On the per-chromosome basis: compute the mean and std
-    #   Eliminate the chromosomes with highest std (bossibly contain inner amplifications)
+    #   Eliminate the chromosomes with highest std (possibly contain inner amplifications)
     #   determine the bounds of the HMM model.
     #   Run the HMM rounds iteratively,
     #       On each iteration, remove losses/gains from the previous model.
