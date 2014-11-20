@@ -10,7 +10,8 @@ from scipy.stats import ttest_ind
 from itertools import combinations
 import scipy.cluster.hierarchy as sch
 from scipy.spatial.distance import pdist
-from sklearn.decomposition import FastICA, PCA
+from scipy.ndimage.filters import gaussian_filter1d as smooth_signal
+import warnings
 
 # intra-chromosome v.s. interchromosome variance?
 # normalized within 50% lowest of the variance within a single chromosome?
@@ -48,12 +49,16 @@ chromosome_tag = np.repeat(locuses[:, 0].reshape((1, locuses.shape[0])), 200, ax
 #########################
 # Defines the parsing HMM
 #########################
-transition_probs  = np.ones((3, 3)) * 0.01
-np.fill_diagonal(transition_probs, 0.98)
+transition_probs  = np.ones((3, 3)) * 0.001
+np.fill_diagonal(transition_probs, 0.998)
 initial_dist = np.array([[0.33, 0.34, 0.33]])
-emission_probs  = np.ones((3, 3)) * 0.05
-np.fill_diagonal(emission_probs, 0.9)
+emission_probs  = np.ones((3, 3)) * 0.1
+np.fill_diagonal(emission_probs, 0.8)
 parsing_hmm = hmm.HMM(transition_probs, emission_probs)
+parsing_hmm2 = hmm.HMM(transition_probs, emission_probs)
+
+warnings.catch_warnings()
+warnings.simplefilter("ignore")
 
 def t_test_matrix(lane):
 
@@ -66,6 +71,11 @@ def t_test_matrix(lane):
         _, p_val = ttest_ind(rm_nans(current_lane[broken_table[i, :]]), rm_nans(current_lane[broken_table[j, :]]), False)
         p_vals[i, j] = p_val
     return p_vals
+
+def rolling_window(a, window):
+    shape = a.shape[:-1] + (a.shape[-1] - window + 1, window)
+    strides = a.strides + (a.strides[-1],)
+    return np.lib.stride_tricks.as_strided(a, shape=shape, strides=strides)
 
 
 def compute_karyotype(lane, plotting=False, threshold = 0.33):
@@ -83,6 +93,7 @@ def compute_karyotype(lane, plotting=False, threshold = 0.33):
     def plot_classification():
 
         classification_tag = np.repeat(parsed.reshape((1, parsed.shape[0])), 100, axis=0)
+        classification_tag2 = np.repeat(parsed2.reshape((1, parsed.shape[0])), 100, axis=0)
         ax1 = plt.subplot(311)
         plt.imshow(chromosome_tag, interpolation='nearest', cmap='spectral')
         plt.imshow(classification_tag, interpolation='nearest', cmap='coolwarm')
@@ -91,12 +102,17 @@ def compute_karyotype(lane, plotting=False, threshold = 0.33):
         plt.plot(current_lane, 'k.', label = '%s %s %s'%(lane,
                                                          '{0:.2f}'.format(np.mean(rm_nans(current_lane))),
                                                          '{0:.2f}'.format(np.std(rm_nans(current_lane)))))
+        plt.plot(gauss_convolve, 'r', lw=2)
+        plt.plot(gauss_convolve+rolling_std, 'g', lw=2)
+        plt.plot(gauss_convolve-rolling_std, 'g', lw=2)
         plt.legend(prop={'size':10})
         plt.setp(ax2.get_xticklabels(), visible=False)
-        ax3 = plt.subplot(313)
-        plt.plot(total_corr, 'k.')
-        # plt.imshow(chromosome_tag, interpolation='nearest', cmap='spectral')
-        # plt.imshow(re_classification_tag, interpolation='nearest', cmap='coolwarm')
+        ax3 = plt.subplot(313, sharex=ax1)
+        # plt.plot(total_corr, 'k.')
+        # plt.plot(gauss_convolve, 'k.')
+        # plt.plot(rolling_std, 'g')
+        plt.imshow(chromosome_tag, interpolation='nearest', cmap='spectral')
+        plt.imshow(classification_tag2, interpolation='nearest', cmap='coolwarm')
         # plt.setp(ax3.get_xticklabels(), visible=False)
         plt.show()
 
@@ -109,12 +125,37 @@ def compute_karyotype(lane, plotting=False, threshold = 0.33):
     partial_corr = np.correlate(rm_nans(current_lane), rm_nans(current_lane), mode='full')
     total_corr = partial_corr[partial_corr.size/2:]
 
-    print broken_table.shape[0]
-    for i in range(0, broken_table.shape[0]):
-        current_chromosome = rm_nans(current_lane[broken_table[i, :]])
-        print i+1, np.mean(current_chromosome), np.std(current_chromosome)
-        print '\t', np.median(current_chromosome), (np.percentile(current_chromosome, 85)-np.percentile(current_chromosome, 15))/2.0
+    gauss_convolve = np.empty(current_lane.shape)
+    gauss_convolve.fill(np.NaN)
+    gauss_convolve[np.logical_not(np.isnan(current_lane))] = smooth_signal(rm_nans(current_lane), 10, order=0, mode='mirror')
 
+    rolling_std = np.empty(current_lane.shape)
+    rolling_std.fill(np.NaN)
+    payload = np.std(rolling_window(rm_nans(current_lane), 10), 1)
+    c1, c2 = (np.sum(np.isnan(current_lane[:5])), np.sum(np.isnan(current_lane[-4:])))
+    rolling_std[5:-4][np.logical_not(np.isnan(current_lane))[5:-4]] = np.lib.pad(payload,
+                                                                                 (c1, c2),
+                                                                                 'constant',
+                                                                                 constant_values=(np.NaN, np.NaN))
+
+    # nns_rolling_std = rm_nans(rolling_std)
+    # print(np.percentile(nns_rolling_std, 50),
+    #       np.percentile(nns_rolling_std, 75),
+    #       np.percentile(nns_rolling_std, 80),
+    #       np.percentile(nns_rolling_std, 90),
+    #       np.percentile(nns_rolling_std, 95))
+
+    prct_threshold = np.percentile(rm_nans(rolling_std), 75)
+    print prct_threshold
+    binarized2 = (current_lane > prct_threshold).astype(np.int16) - (current_lane < -prct_threshold) + 1
+    parsed2 = np.array(hmm.viterbi(parsing_hmm2, initial_dist, binarized2))
+
+    # print broken_table.shape[0]
+    # for i in range(0, broken_table.shape[0]):
+    #     current_chromosome = rm_nans(current_lane[broken_table[i, :]])
+    #     print i+1, np.mean(current_chromosome), np.std(current_chromosome)
+    #     print '\t', np.median(current_chromosome), (np.percentile(current_chromosome, 85)-np.percentile(current_chromosome, 15))/2.0
+    #
 
 
     t_mat = t_test_matrix(lane)
