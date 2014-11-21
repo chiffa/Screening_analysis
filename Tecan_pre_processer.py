@@ -20,9 +20,9 @@ mlb.rcParams['figure.figsize'] = (30,20)
 # todo: add discounting for the yeast division lag in the new cells.
 # todo: Normalize OD with respect to the empty wells
 
-file_location = 'U:/ank/2014/Screen_with_Jin/11.04.2014'
+file_location = 'U:/ank/2014/Screen_with_Jin/11.15.2014'
 # file_name = 'Tecan_9-26-2014.xlsx'
-file_name = 'Book1.xlsx'
+file_name = 'Book2.xls'
 d_time = 15./60.
 
 
@@ -51,6 +51,13 @@ def extract_plate_dit():
                     collect_dict.append(plate)
                     latest += d_time
     return np.array(collect_dict)
+
+
+def smooth_plate(plate, window):
+    re_plate = plate.copy()
+    for i, j in product(range(0, 8), range(0, 12)):
+        re_plate[:, i, j] = gf_1d(plate[:, i, j], window)
+    return re_plate
 
 
 def plot_growth(plates_stack, grad=False):
@@ -84,17 +91,20 @@ def group_plot(plates_stack, zoomlist):
 
 
 def analyse(plates_stack, zoomlist):
-    plot_growth(plates_stack)
+    if intermediate_show:
+        plot_growth(plates_stack)
     reference_std = np.std(plates_stack[:, 0, 0])*2
     print reference_std
     log_stack = np.log10(plates_stack)/np.log10(2)
     for i,j in product(range(0, 8), range(0, 12)):
         log_stack[:, i, j] = log_stack[:, i, j] - np.mean(log_stack[range(0, 3), i, j])
-    plot_growth(log_stack)
+    if intermediate_show:
+        plot_growth(log_stack)
     grad_stack = np.zeros(log_stack.shape)
     for i, j in product(range(0, 8), range(0, 12)):
         grad_stack[:, i, j] = np.gradient(gf_1d(log_stack[:, i, j], 2))
-    plot_growth(grad_stack, True)
+    if intermediate_show:
+        plot_growth(grad_stack, True)
     group_plot(plates_stack, zoomlist)
     # group_plot(log_stack, zoomlist)
     group_plot(grad_stack, zoomlist)
@@ -125,18 +135,20 @@ def del_range(plate, positionList):
 
 
 if __name__ == "__main__":
+    intermediate_show = True
     plate_3D_array = extract_plate_dit()
+    plate_3D_array = smooth_plate(plate_3D_array, 5)
     # plate_3D_array = del_exception(plate_3D_array, 220)
     # plate_3D_array = del_exception(plate_3D_array, 220)
     # plate_3D_array = correct(plate_3D_array, 219, 6)
     # del_range(plate_3D_array, range(220,222))
     plate_3D_array = plate_3D_array - np.min(plate_3D_array) + 0.001
     zoomlist = []
-    # zoomlist = [
-    #             [(5, 6), (6, 6), (5, 2), (6, 2)],
-    #             [(5, 6), (6, 6), (3, 6), (4, 6)],
-    #             [(5, 6), (6, 6), (1, 6), (2, 6)],
-    #             [(5, 6), (6, 6), (3, 7), (4, 7)],
-    #             [(2, 6), (6, 6), (3, 7), (4, 7), (1, 2), (2, 2)],
-    #             ]
+    zoomlist = [
+                [(1, 1), (5, 1), (1, 3), (4, 3), (5, 3) ],
+                [(1, 1), (1, 3), (1, 6), (1, 10)],
+                [(3, 1), (3, 3), (3, 6), (3, 10)],
+                [(5, 1), (4, 3), (5, 3)],
+                # [(2, 6), (6, 6), (3, 7), (4, 7), (1, 2), (2, 2)],
+                ]
     analyse(plate_3D_array, zoomlist)
