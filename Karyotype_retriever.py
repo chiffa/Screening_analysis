@@ -14,6 +14,7 @@ from scipy.ndimage.filters import gaussian_filter1d as smooth_signal
 import warnings
 from itertools import izip
 import copy
+from chiffatools.wrappers import debug
 
 # intra-chromosome v.s. interchromosome variance?
 # normalized within 50% lowest of the variance within a single chromosome?
@@ -39,12 +40,14 @@ with open(path.join(pth, fle)) as src:
 ################################
 locuses = np.array(locuses)
 chr_arr = locuses[:, 0]
+#############################################################################################
+# TODO: reformat so that instead of the brokenTable we have a set of chromosome breakpoints
 broken_table = []
 chroms = range(int(np.min(chr_arr)), int(np.max(chr_arr))+1)
 for i in chroms:
     broken_table.append(chr_arr == i)
-
 broken_table = np.array(broken_table)
+#############################################################################################
 chromosome_tag = np.repeat(locuses[:, 0].reshape((1, locuses.shape[0])), 200, axis=0)
 
 #########################
@@ -60,16 +63,27 @@ parsing_hmm = hmm.HMM(transition_probs, emission_probs)
 warnings.catch_warnings()
 warnings.simplefilter("ignore")
 
-def t_test_matrix(current_lane):
 
+def simple_t_test_matrix(current_lane):
     dst = broken_table.shape[0]
     p_vals = np.empty((dst, dst))
     p_vals.fill(np.NaN)
-
     for i, j in combinations(range(0, dst), 2):
         _, p_val = ttest_ind(rm_nans(current_lane[broken_table[i, :]]), rm_nans(current_lane[broken_table[j, :]]), False)
         p_vals[i, j] = p_val
     return p_vals
+
+
+def t_test_matrix(current_lane, breakpoints):
+    dst = len(breakpoints)
+    p_vals = np.empty((dst, dst))
+    p_vals.fill(np.NaN)
+    subsets = np.split(current_lane, breakpoints[:-1])
+    for i, j in combinations(range(0, dst), 2):
+        _, p_val = ttest_ind(rm_nans(subsets[i]), rm_nans(subsets[j]), False)
+        p_vals[i, j] = p_val
+    return p_vals
+
 
 def rolling_window(a, window):
     shape = a.shape[:-1] + (a.shape[-1] - window + 1, window)
@@ -91,11 +105,22 @@ def show_breakpoints(breakpoints):
         plt.axvline(x=point, color='b')
 
 
-######################################
-# TODO: attention: currently instable
-def t_statistic_sorter(current_lane):
+def generate_breakpoint_mask(breakpoints):
+    support = np.zeros((np.max(breakpoints), ))
+    pre_brp = 0
+    for i, brp in enumerate(breakpoints):
+        support[pre_brp:brp] = i
+        pre_brp = brp
+    return support
 
-    t_mat = t_test_matrix(current_lane)
+
+def t_statistic_sorter(current_lane, breakpoints=None):
+
+    if breakpoints is None:
+        t_mat = simple_t_test_matrix(current_lane)
+    else:
+        t_mat = t_test_matrix(current_lane, breakpoints)
+
     t_mat[np.isnan(t_mat)] = 0
     t_mat = t_mat + t_mat.T
     np.fill_diagonal(t_mat, 1)
@@ -107,23 +132,35 @@ def t_statistic_sorter(current_lane):
     clust_alloc = sch.fcluster(Y, 0.95, criterion='distance')
 
     averages = []
-    for i in range(0, 24):
-        averages.append(np.median(rm_nans(current_lane[broken_table[i]])))  # TODO: correct here to remove the broken table, insert breakpoint selector
+    if breakpoints is None:
+        for i in range(0, 24):
+            averages.append(np.median(rm_nans(current_lane[broken_table[i]])))
+    else:
+        subsets = np.split(current_lane, breakpoints[:-1])
+        for subset in subsets:
+            av = np.average(rm_nans(subset))
+            averages.append(av)
 
     accumulator = [[] for _ in range(0, max(clust_alloc)+1)]
     for loc, item in enumerate(averages):
         accumulator[clust_alloc[loc]].append(item)
+
     accumulator = np.array([ np.average(np.array(_list)) for _list in accumulator][1:])
 
     splitting_matrix = np.repeat(accumulator.reshape((1, accumulator.shape[0])),
                                     accumulator.shape[0], axis = 0)
     splitting_matrix = np.abs(splitting_matrix - splitting_matrix.T)
 
-    plt.imshow(splitting_matrix, interpolation='nearest', cmap='coolwarm')
-    plt.show()
+    ########################################################################
+    # plt.imshow(splitting_matrix, interpolation='nearest', cmap='coolwarm')
+    # plt.show()
+    ########################################################################
 
     Y_2 = sch.linkage(splitting_matrix, method='centroid')
-    clust_alloc_2 = sch.fcluster(Y_2, 3, criterion='maxclust')
+    if breakpoints is None:
+        clust_alloc_2 = sch.fcluster(Y_2, 3, criterion='maxclust')
+    else:
+        clust_alloc_2 = sch.fcluster(Y_2, 0.995, criterion='distance')  # attention, there is behavior-critical constant here
 
     accumulator_2 = [[] for _ in range(0, max(clust_alloc_2)+1)]
     for loc, item in enumerate(accumulator):
@@ -133,25 +170,41 @@ def t_statistic_sorter(current_lane):
     sorter_l = np.argsort(accumulator_2)
     sorter = dict((pos, i) for i, pos in enumerate(sorter_l))
 
-    re_chromosome_pad = np.repeat(locuses[:, 0].reshape((1, locuses.shape[0])),100, axis=0)
+    if breakpoints is None:
+        re_chromosome_pad = np.repeat(chr_arr.reshape((1, chr_arr.shape[0])), 100, axis=0)
+    else:
+        pre_array = generate_breakpoint_mask(breakpoints)
+        re_chromosome_pad = np.repeat(pre_array.reshape((1, pre_array.shape[0])), 100, axis=0)
+        re_chromosome_pad += 1
+
     re_classification_tag = np.zeros(re_chromosome_pad.shape)
 
+
     for i in range(0, len(clust_alloc)):
-        re_classification_tag[re_chromosome_pad == i+1] = averages[i]
+        # re_classification_tag[re_chromosome_pad == i+1] = averages[i]
         # re_classification_tag[re_chromosome_pad == i+1] = accumulator[ clust_alloc[i]-1]
-        # re_classification_tag[re_chromosome_pad == i+1] = sorter[clust_alloc_2[clust_alloc[i]-1]-1]
+        re_classification_tag[re_chromosome_pad == i+1] = sorter[clust_alloc_2[clust_alloc[i]-1]-1]
+
+    if breakpoints:
+        rcl_med = np.median(re_classification_tag)
+        rcl_min = np.min(re_classification_tag)
+        rcl_max = np.max(re_classification_tag)
+        re_classification_tag -= rcl_med
+        re_classification_tag[re_classification_tag<0] /= (rcl_med-rcl_min)
+        re_classification_tag[re_classification_tag>0] /= (rcl_max-rcl_med)
 
     #################################################################################
-    ax1 = plt.subplot(211)
-    plt.imshow(chromosome_tag, interpolation='nearest', cmap='spectral')
-    plt.imshow(re_classification_tag, interpolation='nearest', cmap='coolwarm')
-    plt.setp(ax1.get_xticklabels(), fontsize=6)
-    ax2 = plt.subplot(212, sharex=ax1)
-    plt.plot(current_lane-np.average(rm_nans(current_lane)), 'k.')
-    plt.setp(ax2.get_xticklabels(), visible=False)
-    plt.show()
+    # ax1 = plt.subplot(211)
+    # plt.imshow(chromosome_tag, interpolation='nearest', cmap='spectral')
+    # plt.imshow(re_classification_tag, interpolation='nearest', cmap='coolwarm')
+    # plt.setp(ax1.get_xticklabels(), fontsize=6)
+    # ax2 = plt.subplot(212, sharex=ax1)
+    # plt.plot(current_lane-np.average(rm_nans(current_lane)), 'k.')
+    # plt.setp(ax2.get_xticklabels(), visible=False)
+    # plt.show()
     ################################################################################
 
+    # TODO: try to retrieve copy number gain/loss
     return re_classification_tag
 
 
@@ -173,7 +226,6 @@ def t_statistic_sorter(current_lane):
 #
 ##############################################################################################
 ##############################################################################################
-
 
 def compute_karyotype(current_lane, plotting=False):
 
@@ -238,22 +290,19 @@ def compute_karyotype(current_lane, plotting=False):
     segment_averages = np.empty(current_lane.shape)
     subsets = np.split(current_lane, breakpoints)
 
-    pre_brp = 0
     breakpoints.append(current_lane.shape[0])
 
+    pre_brp = 0
     for subset, brp in izip(subsets, breakpoints):
         av = np.average(rm_nans(subset))
         segment_averages[pre_brp : brp] = av
         pre_brp = brp
 
-    # TODO: Needs to be moved to the outer scope
-    #############################################################
     collector = []
     for i in chroms:
         lw = np.percentile(parsed[broken_table[i-1, :]]-1, 25)
         hr = np.percentile(parsed[broken_table[i-1, :]]-1, 75)
         collector.append(support_function(lw, hr))
-    ############################################################
 
     if plotting:
         plot_classification()
@@ -261,50 +310,66 @@ def compute_karyotype(current_lane, plotting=False):
     return current_lane-segment_averages, segment_averages, parsed, np.array(collector)
 
 
-def compute_recursive_karyotype(lane, plotting=False):
+def compute_recursive_karyotype(lane, plotting=False, debug_plotting=False):
+
+    def support_function(x, y):
+        if x == 0 and y == 0:
+            return 0
+        if x < 0 and y <= 0:
+            return -1
+        if x >= 0 and y > 0:
+            return 1
+        if x < 0 and y > 0:
+            return 0
 
     current_lane = locuses[:, lane]
-
-    classification_tag2 = t_statistic_sorter(current_lane)
-
-    retlist = compute_karyotype(current_lane, plotting=plotting)
+    retlist = compute_karyotype(current_lane, plotting=debug_plotting)
 
     amplicons = retlist[1]
     ampli_levels = retlist[2]-1
     re_retlist = copy.deepcopy(retlist)
     for i in range(0, 6):
-        re_retlist = compute_karyotype(re_retlist[0], plotting=plotting)
+        re_retlist = compute_karyotype(re_retlist[0], plotting=debug_plotting)
         if np.max(re_retlist[2])-np.min(re_retlist[2]) < 1:
             break
         else:
             amplicons += re_retlist[1]
             ampli_levels += re_retlist[2] - 1
 
+    breakpoints = pull_breakpoints(ampli_levels)
+    breakpoints.append(current_lane.shape[0])
 
-    # TODO: insert the t-test balancer of segments in order to iteratively remove "short"
-    #       segments and insert into longer ones.
+    re_class_tag = t_statistic_sorter(current_lane, breakpoints)
 
-    classification_tag = np.repeat(ampli_levels.reshape((1, ampli_levels.shape[0])), 100, axis=0)
-    ax1 = plt.subplot(211)
-    plt.imshow(chromosome_tag, interpolation='nearest', cmap='spectral')
-    plt.imshow(classification_tag, interpolation='nearest', cmap='coolwarm')
-    plt.imshow(classification_tag2, interpolation='nearest', cmap='coolwarm')
-    plt.setp(ax1.get_xticklabels(), fontsize=6)
-    ax2 = plt.subplot(212, sharex=ax1)
-    plt.plot(locuses[:, lane]-np.average(rm_nans(locuses[:, lane])), 'k.')
-    plt.plot(amplicons, 'r', lw=2)
-    plt.setp(ax2.get_xticklabels(), visible=False)
-    plt.show()
+    if plotting:
+        classification_tag = np.repeat(ampli_levels.reshape((1, ampli_levels.shape[0])), 100, axis=0)
+        ax1 = plt.subplot(311)
+        plt.imshow(chromosome_tag, interpolation='nearest', cmap='spectral')
+        plt.imshow(classification_tag, interpolation='nearest', cmap='coolwarm')
+        # plt.imshow(classification_tag2, interpolation='nearest', cmap='coolwarm')
+        plt.setp(ax1.get_xticklabels(), fontsize=6)
+        ax2 = plt.subplot(312, sharex=ax1)
+        plt.plot(locuses[:, lane]-np.average(rm_nans(locuses[:, lane])), 'k.')
+        plt.plot(amplicons, 'r', lw=2)
+        plt.setp(ax2.get_xticklabels(), visible=False)
+        ax3 = plt.subplot(313, sharex=ax1)
+        plt.imshow(chromosome_tag, interpolation='nearest', cmap='spectral')
+        plt.imshow(re_class_tag, interpolation='nearest', cmap='coolwarm')
+        plt.setp(ax3.get_xticklabels(), visible=False)
+        plt.show()
 
-    # #############################################################
-    # collector = []
-    # for i in chroms:
-    # lw = np.percentile(parsed[broken_table[i-1, :]]-1, 25)
-    # hr = np.percentile(parsed[broken_table[i-1, :]]-1, 75)
-    # collector.append(support_function(lw, hr))
-    # ############################################################
+    # TODO: make it work after the load rebalancing works.
+    #############################################################
+    parsed = re_class_tag[0, :]
+    collector = []
+    for i in chroms:
+        lw = np.percentile(parsed[broken_table[i-1, :]], 25)
+        hr = np.percentile(parsed[broken_table[i-1, :]], 75)
+        collector.append(support_function(lw, hr))
+    ############################################################
+    print collector
 
-    return retlist
+    return collector
 
 
 def compute_all_karyotypes():
