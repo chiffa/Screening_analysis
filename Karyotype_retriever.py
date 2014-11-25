@@ -16,6 +16,8 @@ from itertools import izip
 import copy
 from chiffatools.wrappers import debug
 
+from Karyotype_support import t_test_matrix, rolling_window, pull_breakpoints, show_breakpoints, generate_breakpoint_mask, inflate_support
+
 # intra-chromosome v.s. interchromosome variance?
 # normalized within 50% lowest of the variance within a single chromosome?
 
@@ -40,6 +42,7 @@ with open(path.join(pth, fle)) as src:
 ################################
 locuses = np.array(locuses)
 chr_arr = locuses[:, 0]
+chr_brps = pull_breakpoints(chr_arr)
 #############################################################################################
 # TODO: reformat so that instead of the brokenTable we have a set of chromosome breakpoints
 broken_table = []
@@ -72,46 +75,6 @@ def simple_t_test_matrix(current_lane):
         _, p_val = ttest_ind(rm_nans(current_lane[broken_table[i, :]]), rm_nans(current_lane[broken_table[j, :]]), False)
         p_vals[i, j] = p_val
     return p_vals
-
-
-def t_test_matrix(current_lane, breakpoints):
-    dst = len(breakpoints)
-    p_vals = np.empty((dst, dst))
-    p_vals.fill(np.NaN)
-    subsets = np.split(current_lane, breakpoints[:-1])
-    for i, j in combinations(range(0, dst), 2):
-        _, p_val = ttest_ind(rm_nans(subsets[i]), rm_nans(subsets[j]), False)
-        p_vals[i, j] = p_val
-    return p_vals
-
-
-def rolling_window(a, window):
-    shape = a.shape[:-1] + (a.shape[-1] - window + 1, window)
-    strides = a.strides + (a.strides[-1],)
-    return np.lib.stride_tricks.as_strided(a, shape=shape, strides=strides)
-
-
-def pull_breakpoints(contingency_list):
-    no_nans_parsed = rm_nans(contingency_list)
-    contingency = np.lib.pad(no_nans_parsed[:-1] == no_nans_parsed[1:], (1, 0), 'constant', constant_values=(True, True))
-    nans_contingency = np.zeros(contingency_list.shape).astype(np.bool)
-    nans_contingency[np.logical_not(np.isnan(contingency_list))] = contingency
-    breakpoints = np.nonzero(np.logical_not(nans_contingency))[0].tolist()
-    return breakpoints
-
-
-def show_breakpoints(breakpoints):
-    for point in breakpoints:
-        plt.axvline(x=point, color='b')
-
-
-def generate_breakpoint_mask(breakpoints):
-    support = np.zeros((np.max(breakpoints), ))
-    pre_brp = 0
-    for i, brp in enumerate(breakpoints):
-        support[pre_brp:brp] = i
-        pre_brp = brp
-    return support
 
 
 def t_statistic_sorter(current_lane, breakpoints=None):
@@ -156,6 +119,11 @@ def t_statistic_sorter(current_lane, breakpoints=None):
     # plt.show()
     ########################################################################
 
+    ########################################################################
+    # Enhancement: Export as the re-assignement routine
+    #
+    ########################################################################
+
     Y_2 = sch.linkage(splitting_matrix, method='centroid')
     if breakpoints is None:
         clust_alloc_2 = sch.fcluster(Y_2, 3, criterion='maxclust')
@@ -170,6 +138,10 @@ def t_statistic_sorter(current_lane, breakpoints=None):
     sorter_l = np.argsort(accumulator_2)
     sorter = dict((pos, i) for i, pos in enumerate(sorter_l))
 
+    ######################################################################################
+    # this is a repainting routine.
+    # TODO: reformat it as one
+    ######################################################################################
     if breakpoints is None:
         re_chromosome_pad = np.repeat(chr_arr.reshape((1, chr_arr.shape[0])), 100, axis=0)
     else:
@@ -178,7 +150,6 @@ def t_statistic_sorter(current_lane, breakpoints=None):
         re_chromosome_pad += 1
 
     re_classification_tag = np.zeros(re_chromosome_pad.shape)
-
 
     for i in range(0, len(clust_alloc)):
         # re_classification_tag[re_chromosome_pad == i+1] = averages[i]
@@ -322,6 +293,56 @@ def compute_recursive_karyotype(lane, plotting=False, debug_plotting=False):
         if x < 0 and y > 0:
             return 0
 
+    def determine_locality():
+        breakpoint_accumulator = []
+        ###########################################################
+        # repeated code. TODO: factor it out
+        prv_brp = 0
+        for breakpoint in breakpoints:
+            breakpoint_accumulator.append(breakpoint-prv_brp)
+            prv_brp = breakpoint
+        breakpoint_accumulator = np.array(breakpoint_accumulator)
+        ############################################################
+        msk = breakpoint_accumulator < 25
+        shortness = inflate_support(current_lane.shape[0], breakpoints, msk)
+
+        shortness_breakpoints = pull_breakpoints(shortness[0, :])
+        shortness_breakpoints.append(shortness.shape[1])
+
+        chr_brp_arr = np.array(chr_brps)
+        re_brp = []
+        prv_brp = 0
+        for breakpoint in shortness_breakpoints:
+            chr_break_verify = np.logical_and(chr_brp_arr > prv_brp, chr_brp_arr < breakpoint)
+            if any(chr_break_verify):
+                re_brp += chr_brp_arr[chr_break_verify].tolist()
+            prv_brp = breakpoint
+        shortness_breakpoints = sorted(shortness_breakpoints + re_brp)
+
+        shortness_ladder = inflate_support(current_lane.shape[0], shortness_breakpoints)[0, :]
+
+        filled_in = parsed.copy()
+        levels = amplicons.copy()
+        prv_brp = 0
+        for _i, breakpoint in enumerate(shortness_breakpoints):
+            current_fltr = shortness_ladder == _i
+            diff_min_max = np.max(parsed[current_fltr]) - np.min(parsed[current_fltr])
+            if diff_min_max == 0 and prv_brp - 1 > 0 and breakpoint + 1 < shortness_breakpoints[-1] and parsed[prv_brp-1] == parsed[breakpoint+1]:
+                filled_in[current_fltr] = parsed[prv_brp - 1]
+                levels[current_fltr] = amplicons[prv_brp - 1]
+            else :
+                average = np.average(amplicons[current_fltr])
+                lvls = np.logical_not(shortness[0, :].astype(np.bool))
+                print lvls.shape, lvls
+                level = np.argmin(amplicons[lvls] - average)
+                color = parsed[lvls][level]
+                filled_in[current_fltr] = color
+                levels[current_fltr] = level
+            prv_brp = breakpoint
+
+        return  shortness, filled_in, levels
+
+
     current_lane = locuses[:, lane]
     retlist = compute_karyotype(current_lane, plotting=debug_plotting)
 
@@ -341,11 +362,21 @@ def compute_recursive_karyotype(lane, plotting=False, debug_plotting=False):
 
     re_class_tag = t_statistic_sorter(current_lane, breakpoints)
 
+    parsed = re_class_tag[0, :]
+    collector = []
+    for i in chroms:
+        lw = np.percentile(parsed[broken_table[i-1, :]], 25)
+        hr = np.percentile(parsed[broken_table[i-1, :]], 75)
+        collector.append(support_function(lw, hr))
+
+    # TODO: disentangle the local amplifications from chromosome-wide amplifications
+    local, background, corrected_levels = determine_locality()
+
     if plotting:
-        classification_tag = np.repeat(ampli_levels.reshape((1, ampli_levels.shape[0])), 100, axis=0)
+        # classification_tag = np.repeat(ampli_levels.reshape((1, ampli_levels.shape[0])), 100, axis=0)
         ax1 = plt.subplot(311)
         plt.imshow(chromosome_tag, interpolation='nearest', cmap='spectral')
-        plt.imshow(classification_tag, interpolation='nearest', cmap='coolwarm')
+        plt.imshow(re_class_tag, interpolation='nearest', cmap='coolwarm')
         # plt.imshow(classification_tag2, interpolation='nearest', cmap='coolwarm')
         plt.setp(ax1.get_xticklabels(), fontsize=6)
         ax2 = plt.subplot(312, sharex=ax1)
@@ -354,20 +385,10 @@ def compute_recursive_karyotype(lane, plotting=False, debug_plotting=False):
         plt.setp(ax2.get_xticklabels(), visible=False)
         ax3 = plt.subplot(313, sharex=ax1)
         plt.imshow(chromosome_tag, interpolation='nearest', cmap='spectral')
-        plt.imshow(re_class_tag, interpolation='nearest', cmap='coolwarm')
+        plt.imshow(local, interpolation='nearest', cmap='coolwarm')
+        # plt.imshow(background, interpolation='nearest', cmap='coolwarm')
         plt.setp(ax3.get_xticklabels(), visible=False)
         plt.show()
-
-    # TODO: make it work after the load rebalancing works.
-    #############################################################
-    parsed = re_class_tag[0, :]
-    collector = []
-    for i in chroms:
-        lw = np.percentile(parsed[broken_table[i-1, :]], 25)
-        hr = np.percentile(parsed[broken_table[i-1, :]], 75)
-        collector.append(support_function(lw, hr))
-    ############################################################
-    print collector
 
     return collector
 
