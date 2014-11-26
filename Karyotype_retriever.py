@@ -17,7 +17,7 @@ import copy
 from chiffatools.wrappers import debug
 
 from Karyotype_support import t_test_matrix, rolling_window, pull_breakpoints, show_breakpoints,\
-    generate_breakpoint_mask, inflate_support, inflate_tags, center_and_rebalance_tags
+    generate_breakpoint_mask, inflate_support, inflate_tags, center_and_rebalance_tags, recompute_level
 
 # intra-chromosome v.s. interchromosome variance?
 # normalized within 50% lowest of the variance within a single chromosome?
@@ -292,6 +292,7 @@ def compute_recursive_karyotype(lane, plotting=False, debug_plotting=False):
         levels = amplicons.copy()
         prv_brp = 0
         processing_trace = []
+        non_short_selector = np.logical_not(shortness[0, :].astype(np.bool))
         for _i, breakpoint in enumerate(shortness_breakpoints):
             processing_trace.append(1)
             if all(shortness[0, :][prv_brp:breakpoint]):
@@ -300,22 +301,35 @@ def compute_recursive_karyotype(lane, plotting=False, debug_plotting=False):
                 diff_min_max = np.max(parsed[current_fltr]) - np.min(parsed[current_fltr])
                 if diff_min_max == 0 and prv_brp - 1 > 0 and breakpoint + 1 < shortness_breakpoints[-1]:
                     processing_trace.append(0)
+                    # print parsed[prv_brp-1] == parsed[breakpoint+1], breakpoint in chr_brps, prv_brp in chr_brps,
+                    non_modified = True
                     if parsed[prv_brp-1] == parsed[breakpoint+1]:
                         processing_trace[-1] -= 0.1
                         filled_in[:, current_fltr] = parsed[prv_brp - 1]
                         levels[current_fltr] = amplicons[prv_brp - 1]
+                        non_modified = False
                     if prv_brp in chr_brps and breakpoint not in chr_brps:
                         processing_trace[-1] -= 0.2
                         filled_in[:, current_fltr] = parsed[breakpoint + 1]
                         levels[current_fltr] = amplicons[breakpoint + 1]
+                        non_modified = False
                     if breakpoint in chr_brps and prv_brp not in chr_brps:
                         processing_trace[-1] -= 0.3
                         filled_in[:, current_fltr] = parsed[prv_brp - 1]
                         levels[current_fltr] = amplicons[prv_brp - 1]
+                        non_modified = False
+                    if non_modified:
+                        processing_trace[-1] -= 0.4
+                        cur_chr = chr_arr[breakpoint]
+                        chr_median = np.median(amplicons[np.logical_and(cur_chr, non_short_selector)])
+                        lar = np.array([prv_brp-1, breakpoint+1])
+                        lval = amplicons[lar]
+                        vl = np.argmin(lval-chr_median)
+                        filled_in[:, current_fltr] = parsed[lar[vl]]
+                        levels[current_fltr] = amplicons[lar[vl]]
                 else :
                     processing_trace.append(2)
                     average = np.average(amplicons[current_fltr])
-                    non_short_selector = np.logical_not(shortness[0, :].astype(np.bool))
                     closest_index = np.argmin(np.abs(amplicons[non_short_selector] - average))
                     closest_index = np.array(range(0, shortness_breakpoints[-1]))[non_short_selector][closest_index]
                     color = parsed[closest_index]
@@ -324,7 +338,10 @@ def compute_recursive_karyotype(lane, plotting=False, debug_plotting=False):
             prv_brp = breakpoint
 
         filled_in = center_and_rebalance_tags(filled_in)
+        levels = recompute_level(filled_in[0, :], levels)
+        # print 'execution trace:', processing_trace
 
+        #######################################################################################
         # ax1 = plt.subplot(411)
         # plt.imshow(chromosome_tag, interpolation='nearest', cmap='spectral')
         # plt.imshow(re_class_tag, interpolation='nearest', cmap='coolwarm')
@@ -344,6 +361,7 @@ def compute_recursive_karyotype(lane, plotting=False, debug_plotting=False):
         # plt.imshow(inflate_support(current_lane.shape[0], shortness_breakpoints, np.array(processing_trace)), interpolation='nearest', cmap='coolwarm')
         # plt.setp(ax4.get_xticklabels(), visible=False)
         # plt.show()
+        #######################################################################################
 
         return  shortness, filled_in, levels
 
@@ -386,11 +404,11 @@ def compute_recursive_karyotype(lane, plotting=False, debug_plotting=False):
         plt.plot(locuses[:, lane]-np.average(rm_nans(locuses[:, lane])), 'k.')
         plt.plot(amplicons, 'r', lw=2)
         plt.setp(ax2.get_xticklabels(), visible=False)
-        ax3 = plt.subplot(513, sharex=ax1)
+        ax3 = plt.subplot(513, sharex=ax1, sharey=ax2)
         # plt.plot(locuses[:, lane]-np.average(rm_nans(locuses[:, lane])), 'k.')
         plt.plot(corrected_levels, 'r', lw=2)
         plt.setp(ax3.get_xticklabels(), visible=False)
-        ax4 = plt.subplot(514, sharex=ax1)
+        ax4 = plt.subplot(514, sharex=ax1, sharey=ax2)
         # plt.plot(locuses[:, lane]-np.average(rm_nans(locuses[:, lane])), 'k.')
         plt.plot(amplicons-corrected_levels, 'g', lw=2)
         plt.setp(ax4.get_xticklabels(), visible=False)
@@ -401,7 +419,7 @@ def compute_recursive_karyotype(lane, plotting=False, debug_plotting=False):
         plt.setp(ax5.get_xticklabels(), visible=False)
         # ax6 = plt.subplot(616, sharex=ax1)
         plt.imshow(chromosome_tag, interpolation='nearest', cmap='spectral')
-        plt.imshow(inflate_support(chromosome_tag.shape[1], chr_brps, np.array(collector)), interpolation='nearest', cmap='coolwarm')
+        plt.imshow(inflate_support(chromosome_tag.shape[1], chr_brps, np.array(collector)), interpolation='nearest', cmap='coolwarm', vmin=-1., vmax=1 )
         # plt.setp(ax6.get_xticklabels(), visible=False)
         plt.show()
 
