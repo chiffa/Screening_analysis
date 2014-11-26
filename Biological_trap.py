@@ -101,7 +101,6 @@ with open(path.join(pth, fle)) as src:
         background[cell_no, drug_no, :] = np.array([row[i] for i in [4, 5, 36, 37]])
         concentrations[cell_no, drug_no, :] = np.array([0]+row[39:48])
 
-
 ban_index = []
 ban_names = []
 

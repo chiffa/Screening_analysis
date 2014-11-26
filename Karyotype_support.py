@@ -50,7 +50,46 @@ def generate_breakpoint_mask(breakpoints):
 def inflate_support(length, breakpoints, values=None):
     if values is None:
         values = np.array(range(0, len(breakpoints)))
+    if breakpoints[-1]< length:
+        breakpoints.append(length)
     ret_array = np.zeros((50, length))
     for _i in range(1, values.shape[0]):
         ret_array[:, breakpoints[_i-1]: breakpoints[_i]] = values[_i]
     return ret_array
+
+
+def inflate_tags(_1D_array, width=100):
+    nar = _1D_array.reshape((1, _1D_array.shape[0]))
+    return np.repeat(nar, width, axis=0)
+
+
+def center_and_rebalance_tags(source_array):
+    """
+    Attention, this method is susceptible to create wrong level distribution in case less than 33 percent of the
+    genome is in the base ploidy state.
+
+    :param source_array:
+    :return:
+    """
+
+    def correct_index(mp_vals):
+        med_min = np.percentile(source_array, 34)
+        med_max = np.percentile(source_array, 66)
+        med_med = np.median(source_array)
+        lcm_med = [mp_vals[_i] for _i, _val in enumerate(lvls) if _val == med_med][0]
+        for _i, _lvl in enumerate(lvls):
+            if _lvl >= med_min and _lvl <= med_max:
+                mp_vals[_i] = lcm_med
+        return mp_vals
+
+    lvls = np.unique(source_array).tolist()
+    map_values = correct_index(np.array(range(0, len(lvls))).astype(np.float))
+    index = np.digitize(source_array.reshape( -1, ), lvls) - 1
+    source_array = map_values[index].reshape(source_array.shape)
+    arr_med = np.median(source_array)
+    arr_min = np.min(source_array)
+    arr_max = np.max(source_array)
+    source_array -= arr_med
+    source_array[source_array < 0] /= (arr_med - arr_min)
+    source_array[source_array > 0] /= (arr_max - arr_med)
+    return source_array
