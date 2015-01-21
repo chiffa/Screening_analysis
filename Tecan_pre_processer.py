@@ -17,12 +17,16 @@ from string import ascii_lowercase
 tinit = time()
 mlb.rcParams['font.size'] = 10.0
 mlb.rcParams['figure.figsize'] = (30,20)
-# todo: add discounting for the yeast division lag in the new cells.
-# todo: Normalize OD with respect to the empty wells
 
-file_location = 'U:/ank/2014/Screen_with_Jin/11.15.2014'
+# todo: add discounting for the yeast division lag in the new cells.
+# todo: Normalize OD with respect to the empty wells => Error funnels
+# todo: add minutes intstead of hour fractions
+
+
+
+file_location = 'U:/ank/2015/01.16.2015/fluco'
 # file_name = 'Tecan_9-26-2014.xlsx'
-file_name = 'Book2.xls'
+file_name = 'Book1.xls'
 d_time = 15./60.
 
 

@@ -14,13 +14,11 @@ from scipy.ndimage.filters import gaussian_filter1d as smooth_signal
 import warnings
 from itertools import izip
 import copy
-from chiffatools.wrappers import debug
 
 from Karyotype_support import t_test_matrix, rolling_window, pull_breakpoints, show_breakpoints,\
     generate_breakpoint_mask, inflate_support, inflate_tags, center_and_rebalance_tags, recompute_level
 
-# intra-chromosome v.s. interchromosome variance?
-# normalized within 50% lowest of the variance within a single chromosome?
+
 
 pth = 'U:\\ank\\2014\\BRU_GBO\\4th_gen'
 fle = 'mmc2-karyotypes.csv'
@@ -434,9 +432,9 @@ def compute_all_karyotypes():
 
     chromlist = []
     for i in range(1, locuses.shape[1]):
-
-        chromlist.append(compute_recursive_karyotype(i, plotting=True)[-1])
+        chromlist.append(compute_recursive_karyotype(i, plotting=False))
     chromlist = np.array(chromlist).astype(np.float64)
+    plot()
     return chromlist, header[1:locuses.shape[1]]
 
 
