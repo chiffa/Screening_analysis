@@ -13,22 +13,32 @@ from csv import reader, writer
 from pprint import pprint
 from time import time
 from string import ascii_lowercase
+from sklearn.gaussian_process import GaussianProcess
+from multiprocessing import Pool, current_process
 
 tinit = time()
 mlb.rcParams['font.size'] = 10.0
 mlb.rcParams['figure.figsize'] = (30,20)
 
+# todo: add a map of the wells and perform a statistical significance analysis
+
 # todo: add discounting for the yeast division lag in the new cells.
+
 # todo: Normalize OD with respect to the empty wells => Error funnels
+
 # todo: add minutes intstead of hour fractions
 
+# TODO: Majoritary outlier correction => all the rest, set to that level of OD.
 
+# TODO: automatically interpolate the missing data
 
-file_location = 'U:/ank/2015/01.16.2015/fluco'
+file_location = 'U:/ank/2015/TcanScreen/02.21.2015/4nqo/'
 # file_name = 'Tecan_9-26-2014.xlsx'
-file_name = 'Book1.xls'
+file_name = 'Book3.xls'
 d_time = 15./60.
 
+
+time_map = defaultdict(int)
 
 current_path = os.path.join(file_location, file_name)
 wb = xlrd.open_workbook(current_path)
@@ -40,7 +50,11 @@ def extract_plate(a1_coordinates, sheet):
     for i, j in product(range(0, 8), range(0, 12)):
         _i, _j = (np.array([i, j]) + np.array(list(a1_coordinates))).astype(np.uint32).tolist()
         # print _i, _j, sheet.cell(_i, _j).value
-        plate[i, j] = sheet.cell(_i, _j).value
+        if sheet.cell(_i, _j).value:
+            plate[i, j] = sheet.cell(_i, _j).value
+        else:
+            print 'missing data @', _i, _j
+            plate[i, j] = -1
     return plate
 
 
@@ -109,9 +123,9 @@ def analyse(plates_stack, zoomlist):
         grad_stack[:, i, j] = np.gradient(gf_1d(log_stack[:, i, j], 2))
     if intermediate_show:
         plot_growth(grad_stack, True)
-    group_plot(plates_stack, zoomlist)
-    # group_plot(log_stack, zoomlist)
-    group_plot(grad_stack, zoomlist)
+    # group_plot(plates_stack, zoomlist)
+    group_plot(log_stack, zoomlist)
+    # group_plot(grad_stack, zoomlist)
 
 
 def correct(plate, position, injections):
@@ -122,6 +136,102 @@ def correct(plate, position, injections):
     for i in range(1, injections):
         new_plate[position+i, :, :] = plate[position, :, :] + diffplate * i
     return new_plate
+
+
+def gaussian_process_regress(timeseries, std, timestamps=None, show=False):
+
+    def show_routine():
+        fig = plt.figure()
+        plt.errorbar(timestamps.ravel(), timeseries, errors, fmt='r.', markersize=10, label=u'Observations')
+        plt.plot(pre_timestamps, y_pred, 'b-', label=u'Prediction')
+        plt.fill(np.concatenate([pre_timestamps, pre_timestamps[::-1]]),
+                np.concatenate([y_pred - 1.9600 * sigma,
+                               (y_pred + 1.9600 * sigma)[::-1]]),
+                alpha=.5, fc='b', ec='None', label='95% confidence interval')
+        plt.xlabel('$x$')
+        plt.ylabel('$f(x)$')
+        plt.legend(loc='upper left')
+
+        plt.show()
+
+
+    if timestamps is None:
+        timestamps = np.linspace(0, timeseries.shape[0]*d_time, timeseries.shape[0])[:, np.newaxis]
+
+    pre_timestamps = timestamps.copy()
+
+    keep_mask = timeseries > 0.0001
+    timestamps = timestamps[:, 0][keep_mask][:, np.newaxis]
+    timeseries = timeseries[keep_mask]
+
+    nugget = np.convolve(timeseries, np.ones((5,))/5, mode='valid')
+    nugget = np.lib.pad(nugget, (2, 2), 'edge')
+    errors = np.abs(nugget - timeseries)
+    errors[errors < std] = std
+    nugget = np.power((errors), 2)
+
+    gp = GaussianProcess(regr='linear', corr='squared_exponential', theta0=10,
+                     thetaL=1e-1, thetaU=100,
+                     nugget=nugget,
+                     random_start=100)
+
+    gp.fit(timestamps, timeseries)
+    y_pred, MSE = gp.predict(pre_timestamps, eval_MSE=True)
+    sigma = np.sqrt(MSE)
+
+    if show:
+        show_routine()
+
+    elif np.any(y_pred < 0.00001):
+        # show_routine()
+        pass
+
+    return y_pred, sigma
+
+
+def gaussian_process_wrapper(bulk_arguments):
+    i,j, pl, std = bulk_arguments
+    pr_name = current_process().name
+    print pr_name,'loess', i, j, time()-time_map[pr_name]
+    time_map[pr_name] = time()
+    return ((i,j), gaussian_process_regress(pl, std))
+
+
+def map_adapter(plate, std):
+     for i,j in product(range(0, 8), range(0, 12)):
+         yield i,j, plate[:, i, j], std
+
+
+def loess(plate):
+    ref_mask = np.zeros((8, 12)).astype(np.bool)
+    ref_mask[:, 0] = True
+    ref_mask[:, 11] = True
+    ref_mask[0, :] = True
+    ref_mask[7, :] = True
+    ref_mask = np.repeat(ref_mask[np.newaxis, :, :], 20, axis=0)
+    refsample = plate_3D_array[ref_mask]
+
+    std = np.std(refsample)
+
+    plate = plate - np.percentile(refsample[refsample > 0.0001], 0.5)
+    re_plate = plate.copy()
+    fine_tune = np.percentile(refsample[refsample > 0.0001], 1)
+
+    p = Pool(4)
+    retset = map(gaussian_process_wrapper, map_adapter(plate, std))
+    for ((i, j), (ret, _)) in retset:
+        re_plate[:, i, j] = ret
+    re_plate[re_plate < fine_tune] = fine_tune
+    return re_plate
+
+
+def interpolate_missing_points(plate):
+    refpoints = loess(plate)
+    # deviation = np.abs(refpoints - plate)
+    # _99 = np.percentile(deviation, 99)
+    # plate[deviation > _99] = -1
+    # refpoints = loess(plate)
+    return refpoints
 
 
 def del_exception(plate, position):
@@ -141,18 +251,19 @@ def del_range(plate, positionList):
 if __name__ == "__main__":
     intermediate_show = True
     plate_3D_array = extract_plate_dit()
-    plate_3D_array = smooth_plate(plate_3D_array, 5)
+    plate_3D_array = interpolate_missing_points(plate_3D_array)
+    plate_3D_array = plate_3D_array
+    # plate_3D_array = smooth_plate(plate_3D_array, 2)
     # plate_3D_array = del_exception(plate_3D_array, 220)
     # plate_3D_array = del_exception(plate_3D_array, 220)
     # plate_3D_array = correct(plate_3D_array, 219, 6)
     # del_range(plate_3D_array, range(220,222))
-    plate_3D_array = plate_3D_array - np.min(plate_3D_array) + 0.001
     zoomlist = []
     zoomlist = [
-                [(1, 1), (5, 1), (1, 3), (4, 3), (5, 3) ],
-                [(1, 1), (1, 3), (1, 6), (1, 10)],
-                [(3, 1), (3, 3), (3, 6), (3, 10)],
-                [(5, 1), (4, 3), (5, 3)],
+                # [(1, 1), (5, 1), (1, 3), (4, 3), (5, 3) ],
+                # [(1, 1), (1, 3), (1, 6), (1, 10)],
+                # [(3, 1), (3, 3), (3, 6), (3, 10)],
+                # [(5, 1), (4, 3), (5, 3)],
                 # [(2, 6), (6, 6), (3, 7), (4, 7), (1, 2), (2, 2)],
                 ]
     analyse(plate_3D_array, zoomlist)
