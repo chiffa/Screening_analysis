@@ -24,13 +24,6 @@ mlb.rcParams['figure.figsize'] = (30,20)
 
 # todo: add discounting for the yeast division lag in the new cells.
 
-# todo: Normalize OD with respect to the empty wells => Error funnels
-
-# todo: add minutes intstead of hour fractions
-
-# TODO: Majoritary outlier correction => all the rest, set to that level of OD.
-
-# TODO: automatically interpolate the missing data
 
 file_location = 'U:/ank/2015/TcanScreen/02.21.2015/4nqo/'
 # file_name = 'Tecan_9-26-2014.xlsx'
@@ -85,12 +78,22 @@ def plot_growth(plates_stack, grad=False):
         fig = plt.subplot(8, 12, i*12+j+1)
         data = plates_stack[:, i, j]
         if grad:
-            plt.title('%s, %s'%('{0:.2f}'.format(float(d_time/np.max(data))), d_time*int(np.argmax(data))))
+            plt.title('%s, %s'%('{0:.0f}'.format(float(d_time/np.max(data)*60)), '{0:.2f}'.format(d_time*np.argmax(data)-(d_time/np.max(data)*3))))
         plt.plot(data.tolist())
         plt.ylim((np.min(plates_stack), np.max(plates_stack)))
-        fig.set_xticklabels([])
-        fig.set_yticklabels([])
-    plt.savefig('im_%s.png'%int(time()-tinit), dpi=500)
+        if j != 0:
+            fig.set_yticklabels([])
+        if i != 7:
+            fig.set_xticklabels([])
+        if i == 7:
+            tick_lbls = ['{0:.1f}'.format(d_time*int(item)) for item in fig.get_xticks()]
+            # tick_lbls = [(lambda x, term: term if x % 2 == 0 else '')(_i, val) for _i, val in enumerate(tick_lbls)]
+            fig.set_xticklabels(tick_lbls)
+            for tick in fig.xaxis.get_major_ticks():
+                tick.label.set_fontsize(10)
+                tick.label.set_rotation('vertical')
+
+    plt.savefig('im_%s.png'%int(time()-tinit), dpi=300)
     plt.show()
     # plt.clf()
 
@@ -191,9 +194,7 @@ def gaussian_process_regress(timeseries, std, timestamps=None, show=False):
 
 def gaussian_process_wrapper(bulk_arguments):
     i,j, pl, std = bulk_arguments
-    pr_name = current_process().name
-    print pr_name,'loess', i, j, time()-time_map[pr_name]
-    time_map[pr_name] = time()
+    print 'loess', i, j
     return ((i,j), gaussian_process_regress(pl, std))
 
 
@@ -217,7 +218,6 @@ def loess(plate):
     re_plate = plate.copy()
     fine_tune = np.percentile(refsample[refsample > 0.0001], 1)
 
-    p = Pool(4)
     retset = map(gaussian_process_wrapper, map_adapter(plate, std))
     for ((i, j), (ret, _)) in retset:
         re_plate[:, i, j] = ret
@@ -225,7 +225,7 @@ def loess(plate):
     return re_plate
 
 
-def interpolate_missing_points(plate):
+def smooth_and_interpolate(plate):
     refpoints = loess(plate)
     # deviation = np.abs(refpoints - plate)
     # _99 = np.percentile(deviation, 99)
@@ -251,8 +251,8 @@ def del_range(plate, positionList):
 if __name__ == "__main__":
     intermediate_show = True
     plate_3D_array = extract_plate_dit()
-    plate_3D_array = interpolate_missing_points(plate_3D_array)
-    plate_3D_array = plate_3D_array
+    plate_3D_array = smooth_and_interpolate(plate_3D_array)
+
     # plate_3D_array = smooth_plate(plate_3D_array, 2)
     # plate_3D_array = del_exception(plate_3D_array, 220)
     # plate_3D_array = del_exception(plate_3D_array, 220)
