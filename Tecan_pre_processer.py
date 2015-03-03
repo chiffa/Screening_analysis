@@ -15,6 +15,7 @@ from time import time
 from string import ascii_lowercase
 from sklearn.gaussian_process import GaussianProcess
 from multiprocessing import Pool, current_process
+from chiffatools.dataviz import smooth_histogram
 
 tinit = time()
 mlb.rcParams['font.size'] = 10.0
@@ -24,10 +25,13 @@ mlb.rcParams['figure.figsize'] = (30,20)
 
 # todo: add discounting for the yeast division lag in the new cells.
 
+# todo: add detection of growth in the reference and supression of the cells in question
+    # mean median - 10 highest %?
 
-file_location = 'U:/ank/2015/TcanScreen/02.21.2015/4nqo/'
+
+file_location = 'U:/ank/2015/TcanScreen/02.21.2015/fluco/'
 # file_name = 'Tecan_9-26-2014.xlsx'
-file_name = 'Book3.xls'
+file_name = 'Book1.xlsx'
 d_time = 15./60.
 
 
@@ -204,14 +208,7 @@ def map_adapter(plate, std):
 
 
 def loess(plate):
-    ref_mask = np.zeros((8, 12)).astype(np.bool)
-    ref_mask[:, 0] = True
-    ref_mask[:, 11] = True
-    ref_mask[0, :] = True
-    ref_mask[7, :] = True
-    ref_mask = np.repeat(ref_mask[np.newaxis, :, :], 20, axis=0)
-    refsample = plate_3D_array[ref_mask]
-
+    refsample = plate_3D_array[generate_reference_mask(plate)]
     std = np.std(refsample)
 
     plate = plate - np.percentile(refsample[refsample > 0.0001], 0.5)
@@ -223,6 +220,24 @@ def loess(plate):
         re_plate[:, i, j] = ret
     re_plate[re_plate < fine_tune] = fine_tune
     return re_plate
+
+
+def generate_reference_mask(plate):
+
+    def extracted_growth_detector(_1D_array):
+        return (np.percentile(_1D_array, 97.5) - np.percentile(_1D_array, 2.5)) < 0.10
+
+    ref_mask = np.zeros((8, 12)).astype(np.bool)
+    ref_mask[:, 0] = True
+    ref_mask[:, 11] = True
+    ref_mask[0, :] = True
+    ref_mask[7, :] = True
+
+    growth_detected = np.apply_along_axis(extracted_growth_detector, 0, plate)
+    ref_mask = np.logical_and(ref_mask, growth_detected)
+    timed_ref_mask = np.repeat(ref_mask[np.newaxis, :, :], plate.shape[0], axis=0)
+
+    return timed_ref_mask
 
 
 def smooth_and_interpolate(plate):
