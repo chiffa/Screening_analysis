@@ -25,13 +25,10 @@ mlb.rcParams['figure.figsize'] = (30,20)
 
 # todo: add discounting for the yeast division lag in the new cells.
 
-# todo: add detection of growth in the reference and supression of the cells in question
-    # mean median - 10 highest %?
 
-
-file_location = 'U:/ank/2015/TcanScreen/02.21.2015/fluco/'
+file_location = 'U:/ank/2015/TcanScreen/03.12.2015/YEP+D/'
 # file_name = 'Tecan_9-26-2014.xlsx'
-file_name = 'Book1.xlsx'
+file_name = 'Book1.xls'
 d_time = 15./60.
 
 
