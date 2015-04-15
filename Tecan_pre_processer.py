@@ -22,15 +22,12 @@ mlb.rcParams['font.size'] = 10.0
 mlb.rcParams['figure.figsize'] = (30,20)
 
 # todo: add a map of the wells and perform a statistical significance analysis
-
 # todo: add discounting for the yeast division lag in the new cells.
 
-
-file_location = 'U:/ank/2015/TcanScreen/03.12.2015/YEP+D/'
+file_location = 'U:/ank/2015/TcanScreen/03.26.2015/GertonLabTcan/'
 # file_name = 'Tecan_9-26-2014.xlsx'
-file_name = 'Book1.xls'
+file_name = 'Book1.xlsx'
 d_time = 15./60.
-
 
 time_map = defaultdict(int)
 
@@ -258,6 +255,17 @@ def del_range(plate, positionList):
     for position in positionList:
         plate = del_exception(plate, position)
     return plate
+
+
+def L2_dist(plates_stack, growth_times):
+    pass
+
+def L2_growth_difference(growth_speed_matrix):
+    pass
+
+# TODO: write repeat similarity distance => L2 on growth curves; L2 on growth conditions
+# TODO: return the test as two matrices
+# TODO: perform the matrix hierarchical clustering
 
 
 if __name__ == "__main__":
