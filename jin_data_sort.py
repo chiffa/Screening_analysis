@@ -15,11 +15,13 @@ __author__ = 'ank@stowers.org'
 
 import os
 import xlrd
+import numpy as np
 from collections import defaultdict
 from csv import reader, writer
 from pprint import pprint
 
 better_growers = 'L:\\ank\\real-runs\\significantly-better-growers_2010-09-16.xls'
+relative_growth = 'L:\\ank\\real-runs\\meanNormalizedFinalAverageSpotIntensity.csv'
 spot_locations = 'L:\\ank\\real-runs\\spotLocation.csv'
 source_folder = 'L:\\ank\\real-runs'
 output_location = 'L:\\ank\\real-runs\\Re_analysis_ank.csv'
@@ -27,6 +29,9 @@ output_folder = 'L:\\ank\\real-runs\\Re_analysis_ank'
 name_to_match = 'averageSpotIntensity'
 
 # Conditions name mapping to the
+# TODO: remove name collision such as 16C and 16 C
+# TODO: inject the initial list with the mappings from Pavelka's mappings
+# convert to use rather the names from "conditions to include in clustering"
 name2abbreviation = {
             '16 C': ('16'),
             'glycerol': ('Glyc'),
@@ -61,7 +66,7 @@ for condition in delkeys:
 # end of block
 
 # recover the better growers from the tables
-def get_better_growers(better_growers_table):
+def get_sig_better_growers(better_growers_table):
     better_pairs = defaultdict(list)
 
     for sheet in better_growers_table.sheets():
@@ -81,6 +86,32 @@ def get_better_growers(better_growers_table):
 
     return better_pairs
 
+
+def get_better_growers(relative_growth):
+    better_pairs = defaultdict(list)
+    names = []
+    aneuploids = []
+    table = []
+    with open(relative_growth, 'rb') as source:
+        csv_reader = reader(source)
+        names = csv_reader.next()[1:]
+        for line in csv_reader:
+            aneuploids.append(line[0])
+            table.append(line[1:])
+    for name in names:
+        if name.split('(')[0] not in abbreviation2name.keys():
+            print '%s as %s not mapped' % (name, name.split('(')[0])
+
+    aneuploids = np.array(aneuploids)
+    table = np.array(table)
+    for i, condition in enumerate(names):
+        fltr = table[i,:] > 1
+        print condition, aneuploids[fltr]
+        better_pairs[condition] += aneuploids[fltr].tolist()
+
+    return better_pairs
+
+
 # read location-depended spot locations:
 def build_spot_map():
     spot_dict = defaultdict(dict)
@@ -92,16 +123,19 @@ def build_spot_map():
     return spot_dict
 
 
-def read_line(position, file_path):
-    with open(file_path, 'rb') as source:
-        csv_reader = reader(source)
-        for line in csv_reader:
-            if line[0] == position:
-                return line
+def read_line(position, file_path, params=[''], buffer={}):
+    if params[0] == (position, file_path) and position in buffer.keys():
+        return buffer[position]
+    else:
+        params[0] = (position, file_path)
+        with open(file_path, 'rb') as source:
+            csv_reader = reader(source)
+            for line in csv_reader:
+                buffer[line[0]] = line
+                if line[0] == position:
+                    return line
 
 # walk the source folder
-# TODO: group by types of stress
-# TODO: add the actual subfolder name, so that we also have the concentration
 # TODO: add matching to the strains that were used for clustering in the original paper
 # TODO: add the link to all the other better growers
 # TODO: add replicates grouping
@@ -160,10 +194,12 @@ def write_out_curves(locations, out_path):
 
 if __name__ == "__main__":
     better_growers_table = xlrd.open_workbook(better_growers)
-    better_pairs = get_better_growers(better_growers_table)
+    better_pairs = get_sig_better_growers(better_growers_table)
+    get_better_growers(relative_growth)
     reference_points = ['controlHaploid', 'controlDiploid', 'controlTriploid']
     better_pairs = dict([(condition, payload + reference_points) for condition, payload in better_pairs.iteritems()])
     spots_dict = build_spot_map()
+    pprint(dict(spots_dict))
     locations, stress_specific_locations = pull_curves(better_pairs, spots_dict)
     write_out_curves(locations, output_location)
 
