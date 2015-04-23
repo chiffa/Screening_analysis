@@ -29,10 +29,10 @@ output_folder = os.path.join(source_folder, 'Re_analysis_ank-2')
 def growth(timepoints, stepness, maxVal, midpoint, delay):
     # maxVal = 50  # works well
     # we will just remember all the parameters; this functions seems to be working better for some reason then the other ones.
-    if delay > 0: # delay control
-        timepoints = timepoints - delay
-        timepoints[timepoints < 0] = 0
-    return maxVal/(1. + np.exp(-np.log(2)*stepness*(timepoints - midpoint)))  # TODO: problem, lag and midpoint are redundant
+    # if delay > 0: # delay control
+    preliminary = maxVal/(1. + np.exp(-np.log(2)*stepness*(timepoints - midpoint)))
+    # preliminary[timepoints < delay] = 0
+    return preliminary
 
 
 def minimize_function_builder(timepoints, means, errors):
@@ -44,6 +44,17 @@ def minimize_function_builder(timepoints, means, errors):
         # ponderated_difference = difference/np.abs(errors)
         ponderated_difference = difference
         return np.sum(ponderated_difference**2)
+
+    return minfunct
+
+
+def minimize_function_builder2(timepoints, means):
+
+    def minfunct(paramset):
+        stepness, maxVal, midpoint, delay = paramset
+        estimate = growth(timepoints, stepness, maxVal, midpoint, delay)
+        difference = np.abs(estimate - means)
+        return np.sum(difference**2)
 
     return minfunct
 
@@ -128,6 +139,21 @@ def pull_curves(name2folder, folder2replicas, spots_map):
     return read_out_map
 
 
+def merge_replicates(condition_specific_replicas):
+    aneuploid2MergedTable = defaultdict(lambda : [[], []])
+
+    for replicate in condition_specific_replicas:
+        for i, aneuploid_ID in enumerate(replicate[0]):
+            time = tuple(replicate[1].tolist())
+            value = replicate[2][i, :].tolist()
+            if not aneuploid2MergedTable[aneuploid_ID][0]:
+                aneuploid2MergedTable[aneuploid_ID][0] = time
+            if time == aneuploid2MergedTable[aneuploid_ID][0]:
+                aneuploid2MergedTable[aneuploid_ID][1].append(value)
+
+    return aneuploid2MergedTable
+
+
 def flatten_and_group(condition_specific_replica, condition_name):
 
     def show(subdict, name):
@@ -138,15 +164,11 @@ def flatten_and_group(condition_specific_replica, condition_name):
         plt.show()
 
 
-    def high_level_pre_process():
-        # a totally different solution: fit each replicate individually,
-        # output individual fit repeats; average parameters => In addition to failure to raise, also gives a lag value
-        pass
-
-
     def pre_process(time, value_list):
         # set every lane to 0
         value_list = np.array(value_list)
+        print value_list
+        print type(value_list), value_list.shape
         value_list = value_list - np.min(np.mean(value_list, axis=0))
 
         take_off = np.max(np.min(value_list, axis=0)[:-1])
@@ -175,47 +197,22 @@ def flatten_and_group(condition_specific_replica, condition_name):
         value_list = np.array(value_list)
         mns = np.mean(value_list, axis=0)
         errs = np.std(value_list, axis=0, ddof=1)
-        try:
-            popt, pcov = curve_fit(growth, np.array(time), mns, p0=[0.1, 60, 60, 40], sigma=errs)
-            # print 'popt:', popt
-            # print 'pcov:', pcov
+        mfunct = minimize_function_builder(np.array(time), mns, errs)
+        OR_object = minimize(mfunct, [0.1, 60, 60, 40], bounds=[(0.01, 0.9), (40, 100), (0, 500), (0, 150)])
+        popt = OR_object.x
+        # print OR_object.x
+        # print OR_object.status
+        # print 'expected error:', mfunct(popt)
+        if OR_object.success:
             fit = (growth(np.array(time), *popt),
                    [1./popt[0]] + popt[1:].tolist(),
                    np.mean(np.abs(growth(np.array(time), *popt)-mns)))
-        except RuntimeError:
-            # print 'fit not found'
-            fit = (mns, [-1., -1., -1.], -1.)
-        newdict[time] = (mns, errs, fit) #fit-related piping. Maybe a Monad would be better here?
-        print fit[1], fit[2]
-        return newdict, []
-
-
-    def process2(time, value_list):
-        # Combine for each element all the x and y columns by concatenating them; then plot
-        # Use regression to fit in a curve
-        newdict = {}
-        for time, value_list in subdict.iteritems():
-            for value in value_list:
-                plt.plot(time, value)
-            value_list = np.array(value_list)
-            mns = np.mean(value_list, axis=0)
-            errs = np.std(value_list, axis=0, ddof=1)
-            mfunct = minimize_function_builder(np.array(time), mns, errs)
-            OR_object = minimize(mfunct, [0.1, 60, 60, 40], bounds=[(0.01, 0.9), (40, 100), (0, 500), (0, 150)])
-            popt = OR_object.x
-            # print OR_object.x
+        else:
             # print OR_object.message
-            # print 'expected error:', mfunct(popt)
-            if OR_object.success:
-                fit = (growth(np.array(time), *popt),
-                       [1./popt[0]] + popt[1:].tolist(),
-                       np.mean(np.abs(growth(np.array(time), *popt)-mns)))
-            else:
-                # print OR_object.message
-                fit = (mns,
-                       [-1., -1., -1., -1.],
-                       -1.)
-            newdict[time] = (mns, errs, fit) #fit-related piping. Maybe a Monad would be better here?
+            fit = (mns,
+                   [-1., -1., -1., -1.],
+                   -1.)
+        newdict[time] = (mns, errs, fit) #fit-related piping. Maybe a Monad would be better here?
         return newdict, fit[1] + [fit[2]]
 
     def show_processed(subdict, name):
@@ -227,14 +224,7 @@ def flatten_and_group(condition_specific_replica, condition_name):
         plt.show()
 
 
-    aneuploid2MergedTable = defaultdict(lambda : [[], []])
-
-    for replicate in condition_specific_replica:
-        for i, aneuploid_ID in enumerate(replicate[0]):
-            time = tuple(replicate[1].tolist())
-            value = replicate[2][i, :].tolist()
-            aneuploid2MergedTable[aneuploid_ID][0] = time
-            aneuploid2MergedTable[aneuploid_ID][1].append(value)
+    aneuploid2MergedTable = merge_replicates(condition_specific_replica)
 
     supercollector = []
     fail_collector = []
@@ -247,7 +237,7 @@ def flatten_and_group(condition_specific_replica, condition_name):
         # if it just fails to rise or the fit is unperfect, record it anyway
         if errvalue < 2:
             if errvalue == 0:
-                re_dict, carryover = process2(time, re_value_list)
+                re_dict, carryover = process(time, re_value_list)
             else:
                 re_dict, carryover = ({}, ['inf', 'NA', 'NA', 'NA', np.mean(np.abs(np.mean(re_value_list, axis=0)))])
             supercollector.append([aneuploid_ID, condition_name] + carryover)
@@ -255,11 +245,85 @@ def flatten_and_group(condition_specific_replica, condition_name):
     return supercollector, fail_collector
 
 
-def iterate_through_conditions(readout_map):
-    super_collector = [['strain', 'condition', 'stepness', 'maxVal', 'midpoint', 'delay',  'fit error']]
+def flatten_and_group2(condition_specific_replica, condition_name, aneuploid_index):
+
+    def iterative_fit(time, value_set):
+
+        def gu(min, max):
+            return np.random.uniform(min, max)
+
+        v_set = np.array(value_set)
+        v_set -= np.min(v_set)
+
+        ffit, errcode = fit_with_flat(time, v_set)
+        if ffit[-1] > 3 and errcode != 1:
+            for i in range(0, 5):
+                bounds = [(0.05, 0.5), (10, 150), (0, 200), (0, 1)] #TDOO: growth-wise lag optimisaiton is skrewed
+                start = [gu(*bound) for bound in bounds]
+                ffit, errcode = fit_with_flat(time, v_set, start_point=start, bounds=bounds)
+                if ffit[-1] < 1:
+                    break
+            if ffit[-1] > 3:
+                errcode = 2
+
+        return v_set, ffit, errcode
+
+    def fit_with_flat(time, v_set, start_point=[0.16, 50., 60., 5.], bounds=[(0.05, 0.9), (10, 150), (0, 500), (0, 150)] ):
+
+        take_off = np.max(v_set[1:-1])
+        if take_off < 10:
+            return ['inf', 'NA', 'NA', 'NA', np.mean(np.abs(np.mean(v_set, axis=0)))], 1
+
+        mfunct = minimize_function_builder2(np.array(time), v_set)
+        OR_object = minimize(mfunct, start_point, method='L-BFGS-B', bounds=bounds)
+        popt = OR_object.x
+        if OR_object.success:
+            return [1./popt[0]] + popt[1:].tolist() + [np.mean(np.abs(growth(np.array(time), *popt)-v_set))], 0
+
+        else:
+            print OR_object.message
+            print OR_object.x
+            popt = OR_object.x
+            return [1./popt[0]] + popt[1:].tolist() + [np.mean(np.abs(growth(np.array(time), *popt)-v_set))], -1
+
+    def show(time, value, fit_params, name):
+        plt.title(name)
+        time = np.array(time)
+        higher_time = np.linspace(np.min(time), np.max(time), 100)
+        plt.plot(time, value, 'r')
+        plt.plot(higher_time, growth(higher_time, 1/fit_params[0], *fit_params[1:-1]), 'k', label=' doubling time: %.2f h\n max: %.2f \n midpoint: %.0f h\n lag: %.0f h\n error: %.2f\n '% tuple(fit_params))
+        plt.legend(loc='upper left', prop={'size':10})
+        plt.show()
+
+
+    aneuploid2MergedTable = merge_replicates(condition_specific_replica)
+
+    supercollector = []
     fail_collector = []
+    stress_lane = []
+    for aneuploid_ID, (time, value_list) in aneuploid2MergedTable.iteritems():
+        for repeat in value_list:
+            norm_repeat, fit_params, error_code = iterative_fit(time, repeat)
+            # if error_code == 0:
+            #     show(time, norm_repeat, fit_params, aneuploid_ID+', '+condition_name)
+            # if error_code == 2 or error_code == -1:
+            #     show(time, norm_repeat, fit_params, aneuploid_ID+', '+condition_name)
+            fail_collector.append([aneuploid_ID, condition_name, error_code] + repeat)
+            supercollector.append([aneuploid_ID, condition_name, error_code] + fit_params)
+            stress_lane
+
+
+    return supercollector, fail_collector
+
+
+def iterate_through_conditions(readout_map):
+    super_collector = [['strain', 'condition', 'fitting result', 'doubling time(h)', 'maxVal', 'midpoint', 'delay',  'fit error']]
+    fail_collector = []
+
+
     for condition, condition_specific_replica in readout_map.iteritems():
-        d_super, d_fail = flatten_and_group(condition_specific_replica, condition)
+
+        d_super, d_fail = flatten_and_group2(condition_specific_replica, condition, aneuploid_index=)
         super_collector += d_super
         fail_collector += d_fail
 
