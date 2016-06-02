@@ -1,5 +1,3 @@
-__author__ = 'ank@stowers.org'
-
 import os
 import numpy as np
 from collections import defaultdict
@@ -9,7 +7,7 @@ from scipy.optimize import minimize
 from pickle import dump, load
 import pandas as pd
 import seaborn.apionly as sns
-from chiffatools.Linalg_routines import rm_nans
+from chiffatools.linalg_routines import rm_nans
 import matplotlib as mlb
 
 mlb.rcParams['font.size'] = 10.0
@@ -21,7 +19,7 @@ aspects = {
         'debug':['flatten_and_group.pre_process']
         }
 
-source_folder = 'L:\\ank\\real-runs\\'
+source_folder = 'L:\\Users\\andrei\\real-runs\\'
 
 past_mappings = os.path.join(source_folder, 'conditions-to-include-in-clustering_2010-09-16.csv') # used by Pavelka in his clustering
 relative_growth = os.path.join(source_folder, 'meanNormalizedFinalAverageSpotIntensity.csv')
@@ -300,7 +298,7 @@ def gini_coeff(x):
     x = rm_nans(x.astype(np.float))
     n = len(x)
     s = x.sum()
-    r =  np.argsort(np.argsort(-x)) # calculates zero-based ranks
+    r = np.argsort(np.argsort(-x)) # calculates zero-based ranks
     return 1 - (2.0 * (r*x).sum() + s)/(n*s)
 
 
@@ -559,7 +557,7 @@ def regress_euploid(conservation_object):
         euploid_reconstruction = euploid_reconstruction / np.nanmean(euploid_reconstruction) * np.nanmax(aneuploid_mean_survival)+0.001
         euploid_err_reconstruction = np.apply_along_axis(np.nanmean, 0, current_table_err[argsort_indexes[:i], :])
 
-        print i , gini_coeff(euploid_reconstruction), np.nanmean(euploid_reconstruction), np.nansum((euploid_reconstruction - speeds_err.reset_index().values[:, 1:][l_idx, :].astype(np.float))**2)
+        print i, gini_coeff(euploid_reconstruction), np.nanmean(euploid_reconstruction), np.nansum((euploid_reconstruction - speeds_err.reset_index().values[:, 1:][l_idx, :].astype(np.float))**2)
 
         speeds_v.loc['reconstruction %s'%i] = euploid_reconstruction
         speeds_err.loc['reconstruction %s'%i] = euploid_err_reconstruction
@@ -574,16 +572,16 @@ def regress_euploid(conservation_object):
 
 
 if __name__ == "__main__":
-    # canonical_mappings, canonical_replicas = build_unified_mappings(past_mappings)
-    # check_unified_mappings(canonical_mappings, canonical_replicas)
-    # # pprint(dict(canonical_mappings))
-    # spots_dict = build_spot_map()
-    # readout_map = pull_curves(canonical_mappings, canonical_replicas, spots_dict)
-    # collector, fails, conservation_object = iterate_through_conditions(readout_map)
-    # write_out_curves(collector, output_location)
-    # write_out_curves(fails, total_log)
-    # # pprint(conservation_object)
-    # dump(conservation_object, open('cons_obj.dmp', 'w'))
+    canonical_mappings, canonical_replicas = build_unified_mappings(past_mappings)
+    check_unified_mappings(canonical_mappings, canonical_replicas)
+    # pprint(dict(canonical_mappings))
+    spots_dict = build_spot_map()
+    readout_map = pull_curves(canonical_mappings, canonical_replicas, spots_dict)
+    collector, fails, conservation_object = iterate_through_conditions(readout_map)
+    write_out_curves(collector, output_location)
+    write_out_curves(fails, total_log)
+    # pprint(conservation_object)
+    dump(conservation_object, open('cons_obj.dmp', 'w'))
 
     conservation_object = load(open('cons_obj.dmp', 'r'))
 
