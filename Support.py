@@ -2,7 +2,7 @@ __author__ = 'ank'
 
 import numpy as np
 from matplotlib import pyplot as plt
-from chiffatools.Linalg_routines import show_matrix_with_names
+from chiffatools.linalg_routines import show_matrix_with_names
 
 debug = 0
 

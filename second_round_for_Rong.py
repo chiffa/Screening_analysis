@@ -80,11 +80,19 @@ def plot_err_bar_plot():
 
     r_headers = np.array(r_headers)
     ginis = np.array(ginis)
-    plt.plot(ginis, averages, 'bo', label='aneuploids')
+    plt.plot(ginis, averages, 'ko', label='aneuploids')
     averages = np.array(averages)
+
+    print r_headers
 
     index = [42, 46]
     plt.plot(ginis[index], averages[index], 'ro', label=', '.join(r_headers[index]))
+
+    index = [43, 45]
+    plt.plot(ginis[index], averages[index], 'go', label=', '.join(r_headers[index]))
+
+    index = [44, 47]
+    plt.plot(ginis[index], averages[index], 'bo', label=', '.join(r_headers[index]))
 
     plt.legend()
     plt.ylabel('average fitness')

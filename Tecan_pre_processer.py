@@ -17,18 +17,19 @@ from chiffatools.dataviz import smooth_histogram
 
 tinit = time()
 mlb.rcParams['font.size'] = 10.0
-mlb.rcParams['figure.figsize'] = (30,20)
+mlb.rcParams['figure.figsize'] = (26, 15)
 
 # todo: add a map of the wells and perform a statistical significance analysis
 # todo: add discounting for the yeast division lag in the new cells.
 
-file_location = 'U:/ank/2015/TcanScreen/03.26.2015/GertonLabTcan/'
+# file_location = 'U:/ank/2015/TcanScreen/03.26.2015/GertonLabTcan/'
+file_location = 'C:\\Users\\Andrei\\Desktop'
 # file_name = 'Tecan_9-26-2014.xlsx'
-file_name = 'Book1.xlsx'
-d_time = 15./60.
+# file_name = 'Book1.xlsx'
+file_name = '11232016growth.xlsx'
+d_time = 30./60.
 
 time_map = defaultdict(int)
-
 current_path = os.path.join(file_location, file_name)
 wb = xlrd.open_workbook(current_path)
 
@@ -113,7 +114,7 @@ def analyse(plates_stack, zoomlist):
     reference_std = np.std(plates_stack[:, 0, 0])*2
     print reference_std
     log_stack = np.log10(plates_stack)/np.log10(2)
-    for i,j in product(range(0, 8), range(0, 12)):
+    for i, j in product(range(0, 8), range(0, 12)):
         log_stack[:, i, j] = log_stack[:, i, j] - np.mean(log_stack[range(0, 3), i, j])
     if intermediate_show:
         plot_growth(log_stack)
@@ -153,7 +154,6 @@ def gaussian_process_regress(timeseries, std, timestamps=None, show=False):
 
         plt.show()
 
-
     if timestamps is None:
         timestamps = np.linspace(0, timeseries.shape[0]*d_time, timeseries.shape[0])[:, np.newaxis]
 
@@ -189,13 +189,13 @@ def gaussian_process_regress(timeseries, std, timestamps=None, show=False):
 
 
 def gaussian_process_wrapper(bulk_arguments):
-    i,j, pl, std = bulk_arguments
+    i, j, pl, std = bulk_arguments
     print 'loess', i, j
     return ((i,j), gaussian_process_regress(pl, std))
 
 
 def map_adapter(plate, std):
-     for i,j in product(range(0, 8), range(0, 12)):
+     for i, j in product(range(0, 8), range(0, 12)):
          yield i,j, plate[:, i, j], std
 
 
