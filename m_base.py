@@ -24,16 +24,16 @@ Bp_Dict=[
 
 print Bp_Dict, len(Bp_Dict)
 
-rg = range(0,len(Bp_Dict))
+rg = range(0, len(Bp_Dict))
 
 appPlod_list = []
 AllList = []
 tl = float(sum(Bp_Dict))
 
-for i in range(0,len(rg)):
+for i in range(0, len(rg)):
     appPlod_list = appPlod_list + [ len(chrlist)/16.0+1 for chrlist in combinations(rg, i)]
 
-for i in range(0,len(rg)):
+for i in range(0, len(rg)):
     for chrset in combinations(rg,i):
         AllList.append(sum(Bp_Dict[i] for i in chrset)/tl+1)
 

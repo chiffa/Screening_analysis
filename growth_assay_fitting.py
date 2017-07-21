@@ -13,6 +13,7 @@ import pandas as pd
 import seaborn.apionly as sns
 from chiffatools.linalg_routines import rm_nans, gini_coeff
 import matplotlib as mlb
+from pprint import pprint
 
 mlb.rcParams['font.size'] = 10.0
 mlb.rcParams['figure.figsize'] = (25, 15)
@@ -23,10 +24,12 @@ aspects = {
         'debug': ['flatten_and_group.pre_process']
         }
 
-source_folder = 'L:\\Users\\andrei\\real-runs\\'
+# source_folder = 'L:\\Users\\andrei\\real-runs\\'
+source_folder = 'C:\\Users\\Andrei\\Documents\\real-runs'
 
 past_mappings = os.path.join(source_folder, 'conditions-to-include-in-clustering_2010-09-16.csv')
 # conditions and replicates used by Pavelka in his clustering
+past_mappings = os.path.join(source_folder, 'conditions-to-include-in-clustering_reduced.csv') # Nature paperclustering
 relative_growth = os.path.join(source_folder, 'meanNormalizedFinalAverageSpotIntensity.csv')
 spot_locations = os.path.join(source_folder, 'spotLocation.csv')
 output_location = os.path.join(source_folder, 'Re_analysis_ank-3.csv')
@@ -108,15 +111,21 @@ def read_file(file_path, spots_map):
 
 # walks the source folder and reads the original data.
 def pull_curves(name2folder, folder_2_replicas, spots_map):
+
+    def errf(x):
+        raise x
+
+
     name2full_location = defaultdict(list)
     for name, folders in name2folder.iteritems():
         for folder in folders:
-            for subfolder in os.walk(folder):
+            for subfolder in os.walk(folder, onerror=errf):
                 parsed_subfolder = subfolder[0].split('\\')
                 if parsed_subfolder[-1][-2:] in ['_A', '_B', '_C'] \
                         and os.path.isdir(subfolder[0]):
                     for fle in subfolder[2]:
                         if 'averageSpotIntensity' in fle and parsed_subfolder[-1][-1] in folder_2_replicas[folder]:
+                            print 'appending location', os.path.join(subfolder[0], fle)
                             name2full_location[name].append((parsed_subfolder[-1][-1], os.path.join(subfolder[0], fle)))
 
     read_out_map = defaultdict(list)
@@ -258,6 +267,7 @@ def flatten_and_group(condition_specific_replica, condition_name, aneuploid_inde
     aneuploid_2_merged_replicates = merge_replicates(condition_specific_replica)
 
     for aneuploid_ID, (time_points, od_means_list) in aneuploid_2_merged_replicates.iteritems():
+        print aneuploid_ID,
         doubling_time_holder = []
         midpoint_holder = []
         delay_lane_holder = []
@@ -288,6 +298,7 @@ def flatten_and_group(condition_specific_replica, condition_name, aneuploid_inde
         midpoints_lane[a_i] = midpoint_holder
         delay_lane[a_i] = delay_lane_holder
         maxval_lane[a_i] = maxval_lane_holder
+        print lastval_lane_holder
         lastval_lane[a_i] = lastval_lane_holder
 
     return fit_param_collector, od_means_collector, doubling_time_lane, midpoints_lane, \
@@ -315,6 +326,7 @@ def iterate_through_conditions(readout_map):
     aneuploids_index = dict([(aneup_name, _i) for _i, aneup_name in enumerate(aneuploids_names)])
 
     for condition, condition_specific_replicas in readout_map.iteritems():
+        print '\n\n', condition
         condition_names += [condition]
         fit_params_coll, od_means_coll, doubling_time_lane, midpoints_lane, delay_lane, \
         maxval_lane, lastval_lane = \
@@ -326,6 +338,8 @@ def iterate_through_conditions(readout_map):
         delays.append(delay_lane)
         maxvals.append(maxval_lane)
         lastvals.append(lastval_lane)
+        print '\n'
+        pprint(lastval_lane)
 
     cons_obj = (aneuploids_names, condition_names, speeds, midpoints, delays, maxvals, lastvals)
     return fit_params_collector, od_means_collector, cons_obj
@@ -340,7 +354,7 @@ def write_out_curves(matrix, out_path):
 
 
 def reduce_table(conservation_object):
-
+    # TODO: looks that it's here that the lastvalues fail.
     def reduction_routine(list_to_reduce):
         list_to_reduce = [str(elt) for elt in list_to_reduce]
         num_list = np.genfromtxt(np.array(list_to_reduce))
@@ -353,8 +367,11 @@ def reduce_table(conservation_object):
         mn, sd = (np.nanmean(numerical_redux),
                   1.96*np.nanstd(numerical_redux, ddof=1)/np.sqrt(len(list_to_reduce)-sum(
                       non_numerical)))
-        if sd/mn < 0.5 and mn > 2:
+        if sd/mn < 0.5 and mn > 2:  # noise acceptable for a large enough mean
             return mn, sd
+        if mn < 2:  # noise does not matter if we are close to 0
+            return mn, sd
+
         else:
             return np.nan, np.nan
 
@@ -362,6 +379,7 @@ def reduce_table(conservation_object):
         return np.array([[reduction_routine(lst) for lst in cond_lst] for cond_lst in embedded_list])
 
     def split_pandas_frame(data):
+        # print data.shape
         df_v = pd.DataFrame(data[:, :, 0].T, aneup_names, condition_names)
         df_err = pd.DataFrame(data[:, :, 1].T, aneup_names, condition_names)
         return df_v, df_err
@@ -442,11 +460,18 @@ def reduce_table(conservation_object):
             plt.clf()
 
     aneup_names, condition_names, speeds, midpoints, delays, maxvals, lastvals = conservation_object
+
     speeds_v, speeds_err = split_pandas_frame(high_order_reduction(speeds))
     midpoints_v, midpoints_err = split_pandas_frame(high_order_reduction(midpoints))
     delays_v, delays_err = split_pandas_frame(high_order_reduction(delays))
     maxvals_v, maxvals_err = split_pandas_frame(high_order_reduction(maxvals))
     lastvals_v, lastvals_err = split_pandas_frame(high_order_reduction(lastvals))
+
+    pprint(lastvals)
+
+    pprint(lastvals_v)
+
+    raw_input('press enter to continue')
 
     speeds_v.to_csv('speeds_v.csv')
     speeds_err.to_csv('speeds_err.csv')
@@ -495,8 +520,8 @@ def reduce_table(conservation_object):
     lag_fused = np.rollaxis(lag_fused, 1)
     lag_v, lag_errs = split_pandas_frame(lag_fused)
 
-    print lag_v
-    print lag_errs
+    # print lag_v
+    # print lag_errs
 
     # TODO: recalculate the euploid from the aneuploids
 
@@ -586,25 +611,25 @@ def regress_euploid(conservation_object):
     aneuploid_gini_indexes = np.apply_along_axis(gini_coeff, 1, current_table)
     aneuploid_mean_survival = np.apply_along_axis(np.nanmean, 1, current_table)
 
-    print aneuploid_mean_survival
+    # print aneuploid_mean_survival
 
     argsort_indexes = np.argsort(aneuploid_gini_indexes)
 
-    print aneuploid_gini_indexes[argsort_indexes]
+    # print aneuploid_gini_indexes[argsort_indexes]
 
     pre_selector = ['U1']
     selector = np.array([re_index[pre_s] for pre_s in pre_selector])
     l_idx = selector[-1]
 
-    print np.nanmax(current_table)
+    # print np.nanmax(current_table)
 
     for j, i in enumerate(range(4, 7)):
         euploid_reconstruction = np.apply_along_axis(np.nanmean, 0, current_table[argsort_indexes[:i], :])
         euploid_reconstruction = euploid_reconstruction / np.nanmean(euploid_reconstruction) * np.nanmax(aneuploid_mean_survival)+0.001
         euploid_err_reconstruction = np.apply_along_axis(np.nanmean, 0, current_table_err[argsort_indexes[:i], :])
 
-        print i, gini_coeff(euploid_reconstruction), np.nanmean(euploid_reconstruction),\
-            np.nansum((euploid_reconstruction - speeds_err.reset_index().values[:, 1:][l_idx, :].astype(np.float))**2)
+        # print i, gini_coeff(euploid_reconstruction), np.nanmean(euploid_reconstruction),\
+            # np.nansum((euploid_reconstruction - speeds_err.reset_index().values[:, 1:][l_idx, :].astype(np.float))**2)
 
         speeds_v.loc['reconstruction %s' % i] = euploid_reconstruction
         speeds_err.loc['reconstruction %s' % i] = euploid_err_reconstruction
@@ -623,7 +648,9 @@ if __name__ == "__main__":
     check_unified_mappings(canonical_mappings, canonical_replicas)
     # pprint(dict(canonical_mappings))
     spots_dict = build_spot_map()
+    # GOOD UNTIL HERE
     readout_map = pull_curves(canonical_mappings, canonical_replicas, spots_dict)
+    # print readout_map
     collector, fails, conservation_object = iterate_through_conditions(readout_map)
     write_out_curves(collector, output_location)
     write_out_curves(fails, total_log)

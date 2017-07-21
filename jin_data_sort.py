@@ -17,7 +17,7 @@ We then use the data retrieved to peform:
     3) Compute the most likely lag + division speed + normalized form (TODO)
 
 """
-__author__ = 'ank@stowers.org'
+__author__ = 'ank@andreikucharavy.com'
 
 import os
 import xlrd
@@ -27,9 +27,15 @@ from csv import reader, writer
 from pprint import pprint
 from time import sleep
 
-source_folder = 'L:\\ank\\real-runs\\'
+# source_folder = 'L:\\ank\\real-runs\\'
+# source_folder = 'L:\\Users\\andrei\\real-runs'
+source_folder = 'C:\\Users\\Andrei\\Documents\\real-runs'
 
-past_mappings = os.path.join(source_folder, 'conditions-to-include-in-clustering_2010-09-16.csv') # used by Pavelka in his clustering
+
+
+# past_mappings = os.path.join(source_folder, 'conditions-to-include-in-clustering_2010-09-16.csv') # used by Pavelka in his clustering
+past_mappings = os.path.join(source_folder, 'conditions-to-include-in-clustering_reduced.csv') # Nature paperclustering
+# past_mappings = os.path.join(source_folder, 'conditions-to-include-in-clustering_2010-09-16.csv')
 better_growers = os.path.join(source_folder, 'significantly-better-growers_2010-09-16.xls')
 relative_growth = os.path.join(source_folder, 'meanNormalizedFinalAverageSpotIntensity.csv')
 spot_locations = os.path.join(source_folder, 'spotLocation.csv')
@@ -117,7 +123,7 @@ def get_better_growers(relative_growth):
     response_table = np.genfromtxt(response_table.flatten())
     response_table = response_table.reshape(persistent_shape)
     for i, condition in enumerate(names):
-        _fltr = response_table[:, i] > 1.01
+        _fltr = response_table[:, i] > 1.01  # TODO: why the heck is this failing?
         better_pairs[condition] += aneuploids[_fltr].tolist()
 
     better_pairs = dict([(key, list(set(value)))
@@ -230,10 +236,11 @@ if __name__ == "__main__":
     name2abbreviation = build_name2abbreviations(past_mappings)
     abbreviation2name = revert_abbreviation_dict(name2abbreviation)
 
+    # good until here
+
     better_growers_table = xlrd.open_workbook(better_growers)
     # better_pairs = get_sig_better_growers(better_growers_table)
     better_pairs = get_better_growers(relative_growth)
-
     reference_points = ['controlHaploid', 'controlDiploid', 'controlTriploid']
     better_pairs = dict([(condition, payload + reference_points) for condition, payload in better_pairs.iteritems()])
     spots_dict = build_spot_map()
