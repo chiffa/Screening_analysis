@@ -27,9 +27,9 @@ aspects = {
 # source_folder = 'L:\\Users\\andrei\\real-runs\\'
 source_folder = 'C:\\Users\\Andrei\\Documents\\real-runs'
 
-past_mappings = os.path.join(source_folder, 'conditions-to-include-in-clustering_2010-09-16.csv')
+past_mappings = os.path.join(source_folder, 'conditions-to-include-in-clustering_2010-09-16_corr.csv')
 # conditions and replicates used by Pavelka in his clustering
-past_mappings = os.path.join(source_folder, 'conditions-to-include-in-clustering_reduced.csv') # Nature paperclustering
+# past_mappings = os.path.join(source_folder, 'conditions-to-include-in-clustering_reduced.csv') # Nature paperclustering
 relative_growth = os.path.join(source_folder, 'meanNormalizedFinalAverageSpotIntensity.csv')
 spot_locations = os.path.join(source_folder, 'spotLocation.csv')
 output_location = os.path.join(source_folder, 'Re_analysis_ank-3.csv')
@@ -125,7 +125,7 @@ def pull_curves(name2folder, folder_2_replicas, spots_map):
                         and os.path.isdir(subfolder[0]):
                     for fle in subfolder[2]:
                         if 'averageSpotIntensity' in fle and parsed_subfolder[-1][-1] in folder_2_replicas[folder]:
-                            print 'appending location', os.path.join(subfolder[0], fle)
+                            # print 'appending location', os.path.join(subfolder[0], fle)
                             name2full_location[name].append((parsed_subfolder[-1][-1], os.path.join(subfolder[0], fle)))
 
     read_out_map = defaultdict(list)
@@ -267,7 +267,7 @@ def flatten_and_group(condition_specific_replica, condition_name, aneuploid_inde
     aneuploid_2_merged_replicates = merge_replicates(condition_specific_replica)
 
     for aneuploid_ID, (time_points, od_means_list) in aneuploid_2_merged_replicates.iteritems():
-        print aneuploid_ID,
+        # print aneuploid_ID,
         doubling_time_holder = []
         midpoint_holder = []
         delay_lane_holder = []
@@ -298,7 +298,7 @@ def flatten_and_group(condition_specific_replica, condition_name, aneuploid_inde
         midpoints_lane[a_i] = midpoint_holder
         delay_lane[a_i] = delay_lane_holder
         maxval_lane[a_i] = maxval_lane_holder
-        print lastval_lane_holder
+        # print lastval_lane_holder
         lastval_lane[a_i] = lastval_lane_holder
 
     return fit_param_collector, od_means_collector, doubling_time_lane, midpoints_lane, \
@@ -326,7 +326,7 @@ def iterate_through_conditions(readout_map):
     aneuploids_index = dict([(aneup_name, _i) for _i, aneup_name in enumerate(aneuploids_names)])
 
     for condition, condition_specific_replicas in readout_map.iteritems():
-        print '\n\n', condition
+        # print '\n\n', condition
         condition_names += [condition]
         fit_params_coll, od_means_coll, doubling_time_lane, midpoints_lane, delay_lane, \
         maxval_lane, lastval_lane = \
@@ -338,8 +338,8 @@ def iterate_through_conditions(readout_map):
         delays.append(delay_lane)
         maxvals.append(maxval_lane)
         lastvals.append(lastval_lane)
-        print '\n'
-        pprint(lastval_lane)
+        # print '\n'
+        # pprint(lastval_lane)
 
     cons_obj = (aneuploids_names, condition_names, speeds, midpoints, delays, maxvals, lastvals)
     return fit_params_collector, od_means_collector, cons_obj
@@ -354,7 +354,6 @@ def write_out_curves(matrix, out_path):
 
 
 def reduce_table(conservation_object):
-    # TODO: looks that it's here that the lastvalues fail.
     def reduction_routine(list_to_reduce):
         list_to_reduce = [str(elt) for elt in list_to_reduce]
         num_list = np.genfromtxt(np.array(list_to_reduce))
@@ -369,8 +368,8 @@ def reduce_table(conservation_object):
                       non_numerical)))
         if sd/mn < 0.5 and mn > 2:  # noise acceptable for a large enough mean
             return mn, sd
-        if mn < 2:  # noise does not matter if we are close to 0
-            return mn, sd
+        # if mn < 2:  # noise does not matter if we are close to 0
+        #     return mn, sd
 
         else:
             return np.nan, np.nan
@@ -455,7 +454,7 @@ def reduce_table(conservation_object):
                         plt.errorbar(lag[_j], ratio[_j], ratio_e[_j], lag_e[_j],
                                      fmt='.b', label=a_name)
             plt.legend(loc='upper left', prop={'size': 10})
-            plt.savefig('%s.png' % condition)
+            plt.savefig('verification/%s.png' % condition)
             # plt.show()
             plt.clf()
 
@@ -467,22 +466,22 @@ def reduce_table(conservation_object):
     maxvals_v, maxvals_err = split_pandas_frame(high_order_reduction(maxvals))
     lastvals_v, lastvals_err = split_pandas_frame(high_order_reduction(lastvals))
 
-    pprint(lastvals)
+    # pprint(lastvals)
 
-    pprint(lastvals_v)
+    # pprint(lastvals_v)
 
-    raw_input('press enter to continue')
+    # raw_input('press enter to continue')
 
-    speeds_v.to_csv('speeds_v.csv')
-    speeds_err.to_csv('speeds_err.csv')
-    midpoints_v.to_csv('midpoints_v.csv')
-    midpoints_err.to_csv('midpoints_err.csv')
-    delays_v.to_csv('delays_v.csv')
-    delays_err.to_csv('delays_err.csv')
-    maxvals_v.to_csv('maxvals_v.csv')
-    maxvals_err.to_csv('maxvals_err.csv')
-    lastvals_v.to_csv('lastvals_v.csv')
-    lastvals_err.to_csv('lastvals_err.csv')
+    speeds_v.to_csv('csvs/speeds_v.csv')
+    speeds_err.to_csv('csvs/speeds_err.csv')
+    midpoints_v.to_csv('csvs/midpoints_v.csv')
+    midpoints_err.to_csv('csvs/midpoints_err.csv')
+    delays_v.to_csv('csvs/delays_v.csv')
+    delays_err.to_csv('csvs/delays_err.csv')
+    maxvals_v.to_csv('csvs/maxvals_v.csv')
+    maxvals_err.to_csv('csvs/maxvals_err.csv')
+    lastvals_v.to_csv('csvs/lastvals_v.csv')
+    lastvals_err.to_csv('csvs/lastvals_err.csv')
 
     re_index = dict([(name, _i) for _i, name in enumerate(aneup_names)])
 
@@ -542,10 +541,10 @@ def reduce_table(conservation_object):
     #              yerr=np.array(twister_errs.iloc[[ix_2]]).astype(np.float).flatten())
     # plt.show()
 
-    twister_v.to_csv('twister_v.csv')
-    twister_errs.to_csv('twister_errs.csv')
+    twister_v.to_csv('csvs/twister_v.csv')
+    twister_errs.to_csv('csvs/twister_errs.csv')
     #
-    (twister_v - twister_errs).to_csv('twister_v_conservative.csv')
+    (twister_v - twister_errs).to_csv('csvs/twister_v_conservative.csv')
 
     # render(speeds_v, speeds_err, 'duplication_time')
     # render(midpoints_v, midpoints_err, 'midpoints')
